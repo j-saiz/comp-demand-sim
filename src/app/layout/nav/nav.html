@@ -1,0 +1,17 @@
+<nav class="nav" aria-label="Primary">
+  <a routerLink="/" class="nav__brand">Comp Demand Sim</a>
+  <ul class="nav__list">
+    @for (link of links; track link.path) {
+      <li>
+        <a
+          [routerLink]="link.path"
+          routerLinkActive="nav__link--active"
+          [routerLinkActiveOptions]="{ exact: link.exact }"
+          class="nav__link"
+        >
+          {{ link.label }}
+        </a>
+      </li>
+    }
+  </ul>
+</nav>

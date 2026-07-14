@@ -1,0 +1,64 @@
+<section class="page">
+  <header class="page__header">
+    <p class="eyebrow">About</p>
+    <h1>About Comp Demand Sim</h1>
+    <p class="lede">
+      A Monte Carlo application that translates uncertain assembly demand into
+      component requirements using a bill of materials. The default seed data is
+      a PC manufacturing pack; the engine is domain-agnostic.
+    </p>
+  </header>
+
+  <article class="content">
+    <h2>Core planning question</h2>
+    <p>
+      Given uncertain assembly demand and timing, how many of each component
+      should I expect to need each month, and how variable are those estimates?
+    </p>
+
+    <h2>Domain model</h2>
+    <ul>
+      <li>
+        <strong>Components</strong> — parts whose demand you want to estimate
+      </li>
+      <li>
+        <strong>Assemblies</strong> — finished goods/configurations with
+        independent demand
+      </li>
+      <li>
+        <strong>BOM</strong> — components required per assembly unit
+      </li>
+      <li>
+        <strong>Demand lines</strong> — assembly, quantity, dates, distribution
+      </li>
+    </ul>
+
+    <h2>MVP includes</h2>
+    <ul>
+      <li>Editable components, assemblies, and bill of materials</li>
+      <li>Editable scenario demand lines with fixed / uniform / triangular sampling</li>
+      <li>1,000–10,000 client-side Monte Carlo iterations</li>
+      <li>Summary stats, CV ranking, percentile planning table, fan chart</li>
+      <li>CSV export and visible independence / scope limitations</li>
+    </ul>
+
+    <h2>Explicitly out of scope (later phases)</h2>
+    <ul>
+      <li>Inventory, lead times, reorder points, purchase recommendations</li>
+      <li>CSV import and advanced visual analytics</li>
+      <li>Correlation among assemblies, months, and scenarios</li>
+      <li>Multi-level BOMs, multi-user persistence</li>
+    </ul>
+
+    <h2>Stack</h2>
+    <ul>
+      <li>Angular 22 + TypeScript (client-side simulation)</li>
+      <li>Highcharts fan chart</li>
+      <li>Seeded PRNG for reproducible runs</li>
+    </ul>
+
+    <p>
+      <a routerLink="/simulator" class="btn btn--primary">Open simulator</a>
+    </p>
+  </article>
+</section>

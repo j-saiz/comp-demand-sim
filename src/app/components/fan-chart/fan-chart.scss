@@ -1,0 +1,16 @@
+.fan-chart {
+  width: 100%;
+}
+
+.fan-chart__canvas {
+  min-height: 480px;
+  width: 100%;
+}
+
+:host ::ng-deep .fan-chart__empty {
+  margin: 0;
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}

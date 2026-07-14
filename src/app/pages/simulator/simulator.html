@@ -1,0 +1,84 @@
+<div class="sim">
+  <header class="sim__hero">
+    <div>
+      <p class="eyebrow">Monte Carlo MVP</p>
+      <h1>Component Demand Simulator</h1>
+      <p class="lede">
+        Estimate uncertain component demand from assembly demand and a bill of
+        materials. Seeded with a PC industry pack — the model is assembly-agnostic.
+        For planning conversations only — not procurement or inventory
+        optimization.
+      </p>
+    </div>
+    <aside class="disclaimer-banner" role="note">
+      <strong>Scope:</strong> Results estimate component demand from assembly
+      demand uncertainty only. They do
+      <em>not</em> include inventory, lead times, reorder timing, or purchase
+      recommendations.
+    </aside>
+  </header>
+
+  <div class="sim-tabs">
+    <div
+      class="sim-tabs__list"
+      role="tablist"
+      aria-label="Simulator workflow"
+    >
+      @for (tab of tabs; track tab.id) {
+        <button
+          type="button"
+          role="tab"
+          class="sim-tabs__tab"
+          [class.sim-tabs__tab--active]="isActive(tab.id)"
+          [class.sim-tabs__tab--ready]="tab.id === 'results' && state.hasResults()"
+          [id]="tabButtonId(tab.id)"
+          [attr.aria-selected]="isActive(tab.id)"
+          [attr.aria-controls]="panelId(tab.id)"
+          [attr.tabindex]="isActive(tab.id) ? 0 : -1"
+          (click)="selectTab(tab.id)"
+        >
+          <span class="sim-tabs__label">{{ tab.label }}</span>
+          <span class="sim-tabs__desc">{{ tab.description }}</span>
+        </button>
+      }
+    </div>
+
+    <div class="sim-tabs__panels">
+      <div
+        class="sim-tabs__panel"
+        role="tabpanel"
+        [id]="panelId('assumptions')"
+        [attr.aria-labelledby]="tabButtonId('assumptions')"
+        [hidden]="!isActive('assumptions')"
+      >
+        @if (isActive('assumptions')) {
+          <app-assumptions-tab />
+        }
+      </div>
+
+      <div
+        class="sim-tabs__panel"
+        role="tabpanel"
+        [id]="panelId('run')"
+        [attr.aria-labelledby]="tabButtonId('run')"
+        [hidden]="!isActive('run')"
+      >
+        @if (isActive('run')) {
+          <app-run-simulation-tab />
+        }
+      </div>
+
+      <div
+        class="sim-tabs__panel"
+        role="tabpanel"
+        [id]="panelId('results')"
+        [attr.aria-labelledby]="tabButtonId('results')"
+        [hidden]="!isActive('results')"
+      >
+        @if (isActive('results')) {
+          <app-results-tab />
+        }
+      </div>
+    </div>
+  </div>
+</div>

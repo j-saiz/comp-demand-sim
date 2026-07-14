@@ -1,0 +1,246 @@
+<div class="stack">
+  <section class="panel" aria-labelledby="components-heading">
+    <div class="panel__title-row">
+      <h2 id="components-heading">
+        Components
+        <app-help-tip
+          label="Components"
+          text="Parts tracked in the simulation. Each appears as a column in the bill of materials and as a demand output."
+        />
+      </h2>
+      <button type="button" class="btn btn--ghost" (click)="addComponent()">
+        Add component
+      </button>
+    </div>
+    <p class="panel__hint">
+      Define the components (parts) that assemblies consume. Edit cells inline.
+      Component demand is calculated from assembly demand × BOM quantities.
+    </p>
+
+    <div class="table-wrap">
+      <table class="data-table data-table--edit">
+        <caption class="sr-only">Editable components catalog</caption>
+        <thead>
+          <tr>
+            <th scope="col" class="col-num">#</th>
+            <th scope="col" class="col-name">Name</th>
+            <th scope="col" class="col-unit">Unit</th>
+            <th scope="col" class="col-actions">
+              <span class="sr-only">Actions</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (c of state.components(); track c.id; let i = $index) {
+            <tr>
+              <td class="col-num muted">{{ i + 1 }}</td>
+              <td class="col-name">
+                <label class="cell-field">
+                  <span class="sr-only">Component {{ i + 1 }} name</span>
+                  <input
+                    type="text"
+                    [ngModel]="c.name"
+                    (ngModelChange)="onComponentName(c.id, $event)"
+                    maxlength="60"
+                  />
+                </label>
+              </td>
+              <td class="col-unit">
+                <label class="cell-field">
+                  <span class="sr-only">Component {{ i + 1 }} unit</span>
+                  <input
+                    type="text"
+                    [ngModel]="c.unit"
+                    (ngModelChange)="onComponentUnit(c.id, $event)"
+                    maxlength="30"
+                  />
+                </label>
+              </td>
+              <td class="col-actions">
+                <button
+                  type="button"
+                  class="btn btn--ghost btn--danger btn--table"
+                  [disabled]="state.components().length <= 1"
+                  (click)="removeComponent(c.id)"
+                >
+                  Remove
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="assemblies-heading">
+    <div class="panel__title-row">
+      <h2 id="assemblies-heading">
+        Assemblies
+        <app-help-tip
+          label="Assemblies"
+          text="Finished goods or configurations you plan demand for. Each has a BOM recipe of components. Example industry pack: Office PC, Gaming PC, Workstation."
+        />
+      </h2>
+      <button type="button" class="btn btn--ghost" (click)="addAssembly()">
+        Add assembly
+      </button>
+    </div>
+    <p class="panel__hint">
+      These assemblies appear in the scenario demand-line dropdown on the Run
+      tab. Edit cells inline. Removing an assembly reassigns any demand lines
+      that used it.
+    </p>
+
+    <div class="table-wrap">
+      <table class="data-table data-table--edit">
+        <caption class="sr-only">Editable assemblies catalog</caption>
+        <thead>
+          <tr>
+            <th scope="col" class="col-num">#</th>
+            <th scope="col" class="col-name">Name</th>
+            <th scope="col" class="col-desc">Description</th>
+            <th scope="col" class="col-actions">
+              <span class="sr-only">Actions</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (a of state.assemblies(); track a.id; let i = $index) {
+            <tr>
+              <td class="col-num muted">{{ i + 1 }}</td>
+              <td class="col-name">
+                <label class="cell-field">
+                  <span class="sr-only">Assembly {{ i + 1 }} name</span>
+                  <input
+                    type="text"
+                    [ngModel]="a.name"
+                    (ngModelChange)="onAssemblyName(a.id, $event)"
+                    maxlength="60"
+                  />
+                </label>
+              </td>
+              <td class="col-desc">
+                <label class="cell-field">
+                  <span class="sr-only">Assembly {{ i + 1 }} description</span>
+                  <input
+                    type="text"
+                    [ngModel]="a.description"
+                    (ngModelChange)="onAssemblyDescription(a.id, $event)"
+                    maxlength="160"
+                  />
+                </label>
+              </td>
+              <td class="col-actions">
+                <button
+                  type="button"
+                  class="btn btn--ghost btn--danger btn--table"
+                  [disabled]="state.assemblies().length <= 1"
+                  (click)="removeAssembly(a.id)"
+                >
+                  Remove
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="bom-heading">
+    <h2 id="bom-heading">
+      Bill of materials
+      <app-help-tip
+        label="BOM"
+        text="Units of each component required to produce one unit of that assembly. Use 0 when a component is not included."
+      />
+    </h2>
+    <p class="panel__hint">
+      Edit how many of each component go into one unit of each assembly. Changes
+      apply to the next simulation run.
+    </p>
+
+    @if (state.components().length === 0 || state.assemblies().length === 0) {
+      <p class="panel__hint">
+        Add at least one component and one assembly to edit the BOM.
+      </p>
+    } @else {
+      <div class="table-wrap table-wrap--scroll">
+        <table class="data-table data-table--bom">
+          <caption class="sr-only">
+            Editable bill of materials by assembly and component
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Assembly</th>
+              @for (c of state.components(); track c.id) {
+                <th scope="col">{{ c.name }}</th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (a of state.assemblies(); track a.id) {
+              <tr>
+                <th scope="row">{{ a.name }}</th>
+                @for (c of state.components(); track c.id) {
+                  <td>
+                    <label class="cell-field cell-field--num">
+                      <span class="sr-only"
+                        >{{ a.name }} {{ c.name }} quantity</span
+                      >
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        [ngModel]="state.bomQty(a.id, c.id)"
+                        (ngModelChange)="onBomQty(a.id, c.id, $event)"
+                      />
+                    </label>
+                  </td>
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+
+    @if (state.catalogError(); as err) {
+      <p class="error" role="alert">{{ err }}</p>
+    }
+
+    <div class="actions">
+      <button type="button" class="btn btn--primary" (click)="goToRun()">
+        Continue to scenario
+      </button>
+    </div>
+  </section>
+
+  <section class="panel panel--limitations" aria-labelledby="limitations-heading">
+    <h2 id="limitations-heading">Model assumptions &amp; limitations</h2>
+    <ul class="limit-list">
+      <li>
+        Estimates <strong>component demand only</strong> from uncertain assembly
+        demand (Monte Carlo BOM explosion).
+      </li>
+      <li>
+        Scenario demand lines use the assemblies defined here; totals are
+        day-weighted into planning-year months.
+      </li>
+      <li>
+        Does <strong>not</strong> include inventory, supplier lead times, reorder
+        logic, MOQs, or purchase recommendations.
+      </li>
+      <li>
+        Assumes <strong>independent sampling</strong> across assemblies and
+        months. This may <strong>understate risk</strong> when demand moves
+        together.
+      </li>
+      <li>
+        Outputs support planning discussions; combine with operational data
+        before decisions.
+      </li>
+    </ul>
+  </section>
+</div>

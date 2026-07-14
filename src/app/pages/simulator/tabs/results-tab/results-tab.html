@@ -1,0 +1,467 @@
+@if (state.primaryResult(); as result) {
+  <div class="stack">
+    <div class="results-toolbar">
+      <div class="results-toolbar__meta-block">
+        <p class="results-toolbar__meta">
+          Detail:
+          <label class="field field--inline toolbar-select">
+            <span class="sr-only">Detail scenario</span>
+            <select
+              [ngModel]="state.detailScenarioId() ?? result.scenarioId"
+              (ngModelChange)="onDetailScenarioChange($event)"
+            >
+              @for (s of comparedScenarioList(); track s.id) {
+                <option [value]="s.id">{{ s.name }}</option>
+              }
+            </select>
+          </label>
+          · planning year {{ result.planningYear }} ·
+          {{ result.iterations | number }} iterations · seed {{ result.seed }}
+        </p>
+      </div>
+      <div class="actions results-toolbar__actions">
+        <button type="button" class="btn btn--ghost" (click)="goToRun()">
+          Edit scenarios
+        </button>
+        <button type="button" class="btn btn--primary" (click)="exportCsv()">
+          Export CSV
+        </button>
+      </div>
+    </div>
+
+    @if (state.comparedResults().length > 1) {
+      <section class="panel" aria-labelledby="compare-summary-heading">
+        <h2 id="compare-summary-heading">Scenario comparison</h2>
+        <p class="panel__hint">
+          Shared catalog/BOM and settings. Deltas vs
+          <strong>{{ baselineName() }}</strong>. Scenarios are alternate demand
+          plans, not simultaneous correlated worlds.
+        </p>
+        <div class="summary-cards">
+          @for (m of state.scenarioSummaries(); track m.scenarioId) {
+            <article class="summary-card">
+              <h3>{{ m.scenarioName }}</h3>
+              <p>
+                <strong>{{ m.totalAssemblyUnits | number }}</strong> assembly
+                units · {{ m.lineCount }} line(s)
+              </p>
+            </article>
+          }
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="delta-heading">
+        <h2 id="delta-heading">
+          Annual deltas vs {{ baselineName() }}
+          <app-help-tip
+            label="Deltas"
+            text="Δ Mean and Δ P90 are (highest among compared scenarios) − baseline for that component. Sort focus: P90 moves for planning buffers."
+          />
+        </h2>
+        <div class="table-wrap table-wrap--scroll">
+          <table class="data-table data-table--compact">
+            <caption class="sr-only">
+              Component demand means and P90 by scenario
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Component</th>
+                @for (s of comparedScenarioList(); track s.id) {
+                  <th scope="col">{{ s.name }} mean</th>
+                  <th scope="col">{{ s.name }} P90</th>
+                }
+                <th scope="col">Δ mean</th>
+                <th scope="col">Δ mean %</th>
+                <th scope="col">Δ P90</th>
+                <th scope="col">Δ P90 %</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of state.annualDeltas(); track row.componentId) {
+                <tr>
+                  <th scope="row">{{ row.componentName }}</th>
+                  @for (s of comparedScenarioList(); track s.id) {
+                    <td>{{ formatInteger(meanFor(row, s.id)) }}</td>
+                    <td>{{ formatInteger(p90For(row, s.id)) }}</td>
+                  }
+                  <td>{{ formatInteger(row.deltaMean) }}</td>
+                  <td>{{ formatPercent(row.deltaMeanPct) }}</td>
+                  <td>{{ formatInteger(row.deltaP90) }}</td>
+                  <td>{{ formatPercent(row.deltaP90Pct) }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="sensitivity-heading">
+        <h2 id="sensitivity-heading">
+          Sensitivity ranking (by |Δ P90|)
+          <app-help-tip
+            label="Sensitivity"
+            text="Components whose P90 planning level moves most when the demand story changes."
+          />
+        </h2>
+        <ol class="rank-list">
+          @for (
+            row of state.sensitivityRanking();
+            track row.componentId;
+            let i = $index
+          ) {
+            <li>
+              <span class="rank-list__idx">{{ i + 1 }}</span>
+              <span class="rank-list__name">{{ row.componentName }}</span>
+              <span class="rank-list__cv"
+                >Δ P90 {{ formatInteger(row.deltaP90) }}</span
+              >
+              <span class="rank-list__mean"
+                >Δ mean {{ formatInteger(row.deltaMean) }}</span
+              >
+            </li>
+          }
+        </ol>
+      </section>
+
+      <section class="panel" aria-labelledby="scenario-chart-heading">
+        <div class="panel__title-row">
+          <h2 id="scenario-chart-heading">
+            Monthly means by scenario
+            <app-help-tip
+              label="Scenario chart"
+              text="One component’s mean monthly demand, one line per scenario. Choose a single component for detail fan charts below."
+            />
+          </h2>
+          <label class="field field--inline">
+            <span class="field__label">Component</span>
+            <select
+              [ngModel]="state.compareChartComponentId()"
+              (ngModelChange)="onCompareChartComponentChange($event)"
+            >
+              @for (c of resultComponents(); track c.id) {
+                <option [value]="c.id">{{ c.name }}</option>
+              }
+            </select>
+          </label>
+        </div>
+        <app-fan-chart
+          [title]="
+            'Monthly ' + compareChartComponentName() + ' demand by scenario'
+          "
+          [componentName]="compareChartComponentName()"
+          [series]="scenarioCompareSeries()"
+          [height]="420"
+        />
+      </section>
+    }
+
+    <section class="panel" aria-labelledby="lines-heading">
+      <h2 id="lines-heading">
+        Demand lines — {{ result.scenarioName }}
+      </h2>
+      <div class="table-wrap">
+        <table class="data-table">
+          <caption class="sr-only">
+            Scenario demand lines used in this run
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Assembly</th>
+              <th scope="col">Quantity</th>
+              <th scope="col">Distribution</th>
+              <th scope="col">Start date</th>
+              <th scope="col">End date</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (line of result.lines; track line.id) {
+              <tr>
+                <th scope="row">{{ assemblyLabel(line.assemblyId) }}</th>
+                <td>{{ formatInteger(line.quantity) }}</td>
+                <td class="capitalize">{{ line.distribution || 'triangular' }}</td>
+                <td>{{ line.startDate }}</td>
+                <td>{{ line.endDate }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="howto-heading">
+      <h2 id="howto-heading">How to read results</h2>
+      <ul class="howto-list">
+        <li>
+          <strong>Mean</strong> — average simulated demand across iterations.
+        </li>
+        <li>
+          <strong>CV (coefficient of variation)</strong>
+          <app-help-tip
+            label="CV"
+            text="Std. deviation ÷ mean. Higher CV means more relative uncertainty in demand."
+          />
+          — higher values signal more uncertainty (driven by monthly uncertainty
+          % when set above 0).
+        </li>
+        <li>
+          <strong>P90</strong>
+          <app-help-tip
+            label="P90"
+            text="P90 = 90% of simulated outcomes are at or below this demand level. Useful as a conservative planning reference, not a buy recommendation."
+          />
+          — 90% chance demand is at or below this level in the simulated
+          distribution.
+        </li>
+        <li>
+          <strong>Fan chart bands</strong>
+          <app-help-tip
+            label="Fan chart"
+            text="For a single component: outer band is P10–P90, inner is P25–P75, line is mean. For all components: mean lines only for readability."
+          />
+          — single component shows fan bands; all components shows mean lines.
+        </li>
+      </ul>
+    </section>
+
+    <section class="panel" aria-labelledby="summary-heading">
+      <div class="panel__title-row">
+        <h2 id="summary-heading">
+          Component summary — {{ result.scenarioName }}
+        </h2>
+        <span class="badge"
+          >{{ result.iterations | number }} iters · seed {{ result.seed }}</span
+        >
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <caption class="sr-only">
+            Annual component demand statistics
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Component</th>
+              <th scope="col">Mean</th>
+              <th scope="col">Std Dev</th>
+              <th scope="col">
+                CV
+                <app-help-tip
+                  label="CV column"
+                  text="Higher CV = more uncertain annual demand."
+                />
+              </th>
+              <th scope="col">Min</th>
+              <th scope="col">Max</th>
+              <th scope="col">P50</th>
+              <th scope="col">P80</th>
+              <th scope="col">P90</th>
+              <th scope="col">P95</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of result.componentAnnual; track row.componentId) {
+              <tr>
+                <th scope="row">{{ row.componentName }}</th>
+                <td>{{ formatInteger(row.stats.mean) }}</td>
+                <td>{{ formatNumber(row.stats.stdDev) }}</td>
+                <td>{{ formatPercent(row.stats.cv) }}</td>
+                <td>{{ formatInteger(row.stats.min) }}</td>
+                <td>{{ formatInteger(row.stats.max) }}</td>
+                <td>{{ formatInteger(row.stats.percentiles['p50']) }}</td>
+                <td>{{ formatInteger(row.stats.percentiles['p80']) }}</td>
+                <td>{{ formatInteger(row.stats.percentiles['p90']) }}</td>
+                <td>{{ formatInteger(row.stats.percentiles['p95']) }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="percentile-heading">
+      <h2 id="percentile-heading">
+        Percentile planning table
+        <app-help-tip
+          label="Planning table"
+          text="Use percentiles as conversation anchors for buffer discussions. This table does not recommend order quantities or timing."
+        />
+      </h2>
+      <p class="panel__hint">
+        Annual component demand levels by percentile. Supports early procurement
+        conversations only — not buy/when recommendations.
+      </p>
+      <div class="table-wrap">
+        <table class="data-table">
+          <caption class="sr-only">
+            Annual percentile planning levels by component
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Component</th>
+              <th scope="col">P50</th>
+              <th scope="col">P80</th>
+              <th scope="col">P90</th>
+              <th scope="col">P95</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of result.componentAnnual; track row.componentId) {
+              <tr>
+                <th scope="row">{{ row.componentName }}</th>
+                <td>{{ formatInteger(row.stats.percentiles['p50']) }}</td>
+                <td>{{ formatInteger(row.stats.percentiles['p80']) }}</td>
+                <td>{{ formatInteger(row.stats.percentiles['p90']) }}</td>
+                <td>{{ formatInteger(row.stats.percentiles['p95']) }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="cv-heading">
+      <h2 id="cv-heading">
+        Components ranked by CV
+        <app-help-tip
+          label="CV ranking"
+          text="Components with higher annual CV have more relative demand uncertainty under the current forecast assumptions."
+        />
+      </h2>
+      <ol class="rank-list">
+        @for (row of result.cvRanking; track row.componentId; let i = $index) {
+          <li>
+            <span class="rank-list__idx">{{ i + 1 }}</span>
+            <span class="rank-list__name">{{ row.componentName }}</span>
+            <span class="rank-list__cv"
+              >CV {{ formatPercent(row.stats.cv) }}</span
+            >
+            <span class="rank-list__mean"
+              >mean {{ formatInteger(row.stats.mean) }}</span
+            >
+          </li>
+        }
+      </ol>
+    </section>
+
+    <section class="panel" aria-labelledby="alloc-heading">
+      <h2 id="alloc-heading">Monthly assembly allocation used</h2>
+      <p class="panel__hint">
+        Expected assembly units by month after day-weighted allocation (before
+        Monte Carlo uncertainty).
+      </p>
+      <div class="table-wrap table-wrap--scroll">
+        <table class="data-table data-table--compact">
+          <caption class="sr-only">
+            Monthly expected assembly allocation
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Month</th>
+              <th scope="col">Assembly</th>
+              <th scope="col">Expected</th>
+              <th scope="col">Min</th>
+              <th scope="col">Max</th>
+              <th scope="col">Dist.</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of result.monthlyAllocation; track $index) {
+              <tr>
+                <td>{{ monthLabel(row.month) }}</td>
+                <td>{{ row.assemblyName }}</td>
+                <td>{{ formatInteger(row.expectedUnits) }}</td>
+                <td>{{ formatInteger(row.minUnits) }}</td>
+                <td>{{ formatInteger(row.maxUnits) }}</td>
+                <td class="capitalize">{{ row.distribution }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="month-heading">
+      <h2 id="month-heading">Component-by-month table</h2>
+      <p class="panel__hint">
+        Mean monthly demand for this scenario. Scroll horizontally for all
+        months.
+      </p>
+      <div class="table-wrap table-wrap--scroll">
+        <table class="data-table data-table--compact">
+          <caption class="sr-only">
+            Mean component demand by month
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Component</th>
+              @for (label of monthLabels; track label) {
+                <th scope="col">{{ label }}</th>
+              }
+              <th scope="col">Annual mean</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (c of result.componentAnnual; track c.componentId) {
+              <tr>
+                <th scope="row">{{ c.componentName }}</th>
+                @for (m of result.months; track m) {
+                  @let cell = result.componentByMonth.find(
+                    (r) => r.componentId === c.componentId && r.month === m
+                  );
+                  <td>{{ cell ? formatInteger(cell.stats.mean) : '—' }}</td>
+                }
+                <td>
+                  <strong>{{ formatInteger(c.stats.mean) }}</strong>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="chart-heading">
+      <div class="panel__title-row">
+        <h2 id="chart-heading">Time-series chart</h2>
+        <label class="field field--inline">
+          <span class="field__label">View</span>
+          <select
+            [ngModel]="state.selectedChartComponentId()"
+            (ngModelChange)="onChartComponentChange($event)"
+          >
+            <option [value]="chartAllId">All components</option>
+            @for (c of resultComponents(); track c.id) {
+              <option [value]="c.id">{{ c.name }}</option>
+            }
+          </select>
+        </label>
+      </div>
+      <p class="panel__hint">
+        @if (isAllComponentsChart()) {
+          Mean monthly demand for every component on one chart. Choose a single
+          component to see P10–P90 / P25–P75 fan bands.
+        } @else {
+          Fan chart for one component: mean line with P10–P90 and P25–P75 bands.
+        }
+      </p>
+      <app-fan-chart
+        [title]="chartTitle()"
+        [componentName]="chartComponentName()"
+        [series]="chartSeries()"
+        [height]="520"
+      />
+    </section>
+  </div>
+} @else {
+  <section class="panel panel--empty" aria-labelledby="empty-heading">
+    <h2 id="empty-heading">No results yet</h2>
+    <p>
+      Define assemblies, quantities, and date ranges, then run the simulation to
+      generate component demand statistics.
+    </p>
+    <div class="actions">
+      <button type="button" class="btn btn--primary" (click)="goToRun()">
+        Go to run simulation
+      </button>
+    </div>
+  </section>
+}

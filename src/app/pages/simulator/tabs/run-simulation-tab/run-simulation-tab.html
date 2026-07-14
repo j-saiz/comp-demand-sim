@@ -1,0 +1,410 @@
+<div class="stack">
+  <section class="panel" aria-labelledby="scenario-list-heading">
+    <div class="panel__title-row">
+      <h2 id="scenario-list-heading">Scenarios</h2>
+      <div class="actions panel-actions">
+        <button type="button" class="btn btn--ghost" (click)="addScenario()">
+          Add scenario
+        </button>
+        <button type="button" class="btn btn--ghost" (click)="duplicateScenario()">
+          Duplicate active
+        </button>
+      </div>
+    </div>
+    <p class="panel__hint">
+      Multiple demand plans share one catalog and BOM (Assumptions). Check which
+      scenarios to run and compare. Baseline is the reference for result deltas.
+    </p>
+
+    <div class="table-wrap">
+      <table class="data-table data-table--edit scenario-table">
+        <caption class="sr-only">Scenario list</caption>
+        <thead>
+          <tr>
+            <th scope="col">Active</th>
+            <th scope="col">Name</th>
+            <th scope="col">Compare</th>
+            <th scope="col">Baseline</th>
+            <th scope="col">Lines</th>
+            <th scope="col"><span class="sr-only">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (sc of state.scenarios(); track sc.id) {
+            <tr [class.scenario-row--active]="state.activeScenarioId() === sc.id">
+              <td>
+                <label class="radio-cell">
+                  <span class="sr-only">Edit {{ sc.name }}</span>
+                  <input
+                    type="radio"
+                    name="active-scenario"
+                    [checked]="state.activeScenarioId() === sc.id"
+                    (change)="selectScenario(sc.id)"
+                  />
+                </label>
+              </td>
+              <td>
+                <button
+                  type="button"
+                  class="linkish scenario-name-btn"
+                  (click)="selectScenario(sc.id)"
+                >
+                  {{ sc.name }}
+                </button>
+              </td>
+              <td>
+                <label class="check-cell">
+                  <span class="sr-only">Include {{ sc.name }} in comparison</span>
+                  <input
+                    type="checkbox"
+                    [checked]="isCompared(sc.id)"
+                    (change)="onCompareToggle(sc.id, $any($event.target).checked)"
+                  />
+                </label>
+              </td>
+              <td>
+                <label class="radio-cell">
+                  <span class="sr-only">Use {{ sc.name }} as baseline</span>
+                  <input
+                    type="radio"
+                    name="baseline-scenario"
+                    [checked]="state.baselineScenarioId() === sc.id"
+                    (change)="onBaselineChange(sc.id)"
+                  />
+                </label>
+              </td>
+              <td>{{ sc.lines.length }}</td>
+              <td class="col-actions">
+                <button
+                  type="button"
+                  class="btn btn--ghost btn--danger btn--table"
+                  [disabled]="state.scenarios().length <= 1"
+                  (click)="removeScenario(sc.id)"
+                >
+                  Remove
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="scenario-heading">
+    <h2 id="scenario-heading">
+      Demand lines —
+      {{ state.activeScenario()?.name ?? 'Scenario' }}
+    </h2>
+    <p class="panel__hint">
+      Specify each assembly, quantity, dates, and distribution. Assemblies come
+      from the
+      <button type="button" class="linkish" (click)="goToAssumptions()">
+        Assumptions
+      </button>
+      catalog and BOM.
+    </p>
+
+    @if (state.assemblies().length === 0) {
+      <p class="error" role="alert">
+        No assemblies defined.
+        <button type="button" class="linkish" (click)="goToAssumptions()">
+          Add assemblies on Assumptions
+        </button>
+        before building a scenario.
+      </p>
+    }
+
+    <label class="field field--name">
+      <span class="field__label">Scenario name</span>
+      <input
+        type="text"
+        [ngModel]="state.activeScenario()?.name ?? ''"
+        (ngModelChange)="onScenarioNameChange($event)"
+        maxlength="80"
+      />
+    </label>
+
+    <div class="lines-header">
+      <h3>Demand lines</h3>
+      <button
+        type="button"
+        class="btn btn--ghost"
+        [disabled]="state.assemblies().length === 0"
+        (click)="addLine()"
+      >
+        Add demand line
+      </button>
+    </div>
+
+    @if ((state.activeScenario()?.lines.length ?? 0) === 0) {
+      <p class="panel__hint">
+        No demand lines yet. Add at least one assembly, quantity, and date
+        range.
+      </p>
+    }
+
+    <div class="lines">
+      @for (
+        line of state.activeScenario()?.lines ?? [];
+        track line.id;
+        let i = $index
+      ) {
+        <article class="line-card" [attr.aria-label]="'Demand line ' + (i + 1)">
+          <div class="line-card__top">
+            <span class="line-card__index">Line {{ i + 1 }}</span>
+            <button
+              type="button"
+              class="btn btn--ghost btn--danger"
+              [disabled]="(state.activeScenario()?.lines.length ?? 0) <= 1"
+              (click)="removeLine(line.id)"
+            >
+              Remove
+            </button>
+          </div>
+
+          <div class="line-grid">
+            <label class="field">
+              <span class="field__label">
+                Assembly
+                <app-help-tip
+                  label="Assembly"
+                  text="Uses assemblies from the Assumptions catalog."
+                />
+              </span>
+              <select
+                [ngModel]="line.assemblyId"
+                (ngModelChange)="onLineAssemblyChange(line.id, $event)"
+                [disabled]="state.assemblies().length === 0"
+              >
+                @for (a of state.assemblies(); track a.id) {
+                  <option [value]="a.id">{{ a.name }}</option>
+                }
+              </select>
+            </label>
+
+            <label class="field">
+              <span class="field__label">
+                Quantity
+                <app-help-tip
+                  label="Quantity"
+                  text="Total number of assembly units between the start and end dates."
+                />
+              </span>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                [ngModel]="line.quantity"
+                (ngModelChange)="onLineQuantityChange(line.id, $event)"
+              />
+            </label>
+
+            <label class="field">
+              <span class="field__label">
+                Distribution
+                <app-help-tip
+                  label="Distribution"
+                  text="Fixed uses the allocated monthly count exactly. Uniform samples evenly between min and max. Triangular peaks at the allocated count within the uncertainty band."
+                />
+              </span>
+              <select
+                [ngModel]="line.distribution || 'triangular'"
+                (ngModelChange)="onLineDistributionChange(line.id, $event)"
+              >
+                @for (opt of distributionOptions; track opt.value) {
+                  <option [value]="opt.value">{{ opt.label }}</option>
+                }
+              </select>
+            </label>
+
+            <label class="field">
+              <span class="field__label">Start date</span>
+              <input
+                type="date"
+                [ngModel]="line.startDate"
+                (ngModelChange)="onLineStartChange(line.id, $event)"
+              />
+            </label>
+
+            <label class="field">
+              <span class="field__label">End date</span>
+              <input
+                type="date"
+                [ngModel]="line.endDate"
+                (ngModelChange)="onLineEndChange(line.id, $event)"
+              />
+            </label>
+          </div>
+          <p class="line-card__dist-hint">
+            @switch (line.distribution || 'triangular') {
+              @case ('fixed') {
+                Fixed: monthly units equal the day-weighted allocation
+                (uncertainty % ignored).
+              }
+              @case ('uniform') {
+                Uniform: each month samples evenly between the uncertainty min
+                and max.
+              }
+              @default {
+                Triangular: each month peaks at the allocation and tapers to the
+                uncertainty min/max.
+              }
+            }
+          </p>
+        </article>
+      }
+    </div>
+
+    <p class="run-meta">
+      {{ state.lineCount() }} line(s) · {{ state.totalUnits() }} total assembly
+      units in active scenario
+    </p>
+  </section>
+
+  <section class="panel" aria-labelledby="preview-heading">
+    <h2 id="preview-heading">
+      Monthly allocation preview (active scenario)
+      <app-help-tip
+        label="Allocation"
+        text="Quantities are day-weighted across months that overlap each line’s date range."
+      />
+    </h2>
+    <p class="panel__hint">
+      Planning year: <strong>{{ state.settings().planningYear }}</strong>.
+    </p>
+
+    @if (allocationPreview().length === 0) {
+      <p class="panel__hint">No demand falls in the planning year yet.</p>
+    } @else {
+      <div class="table-wrap table-wrap--scroll">
+        <table class="data-table data-table--compact">
+          <caption class="sr-only">
+            Expected monthly assembly units from active scenario
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Month</th>
+              <th scope="col">Assembly</th>
+              <th scope="col">Expected units</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (
+              row of allocationPreview();
+              track row.lineId + '-' + row.month + '-' + row.assemblyName
+            ) {
+              <tr>
+                <td>{{ row.monthLabel }}</td>
+                <td>{{ row.assemblyName }}</td>
+                <td>{{ row.units }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+
+  <section class="panel" aria-labelledby="settings-heading">
+    <h2 id="settings-heading">Simulation settings (shared)</h2>
+    <p class="panel__hint">
+      Same seed, iterations, year, and uncertainty apply to every compared
+      scenario so differences reflect demand plans, not random noise.
+    </p>
+    <div class="field-grid field-grid--2">
+      <label class="field">
+        <span class="field__label">Planning year</span>
+        <input
+          type="number"
+          min="2000"
+          max="2100"
+          step="1"
+          [ngModel]="state.settings().planningYear"
+          (ngModelChange)="onPlanningYearChange($event)"
+        />
+      </label>
+      <label class="field">
+        <span class="field__label">
+          Monthly uncertainty (%)
+          <app-help-tip
+            label="Uncertainty"
+            text="Width of the sampling band for Uniform and Triangular lines."
+          />
+        </span>
+        <input
+          type="number"
+          min="0"
+          max="100"
+          step="1"
+          [ngModel]="uncertaintyPctDisplay()"
+          (ngModelChange)="onUncertaintyChange($event)"
+        />
+      </label>
+      <label class="field">
+        <span class="field__label">Iterations</span>
+        <input
+          type="number"
+          min="1000"
+          max="10000"
+          step="500"
+          [ngModel]="state.settings().iterations"
+          (ngModelChange)="onIterationsChange($event)"
+        />
+      </label>
+      <label class="field">
+        <span class="field__label">Random seed</span>
+        <input
+          type="number"
+          min="0"
+          step="1"
+          [ngModel]="state.settings().seed"
+          (ngModelChange)="onSeedChange($event)"
+        />
+      </label>
+    </div>
+    <div class="actions">
+      <button
+        type="button"
+        class="btn btn--primary"
+        [disabled]="state.isRunning()"
+        (click)="run()"
+      >
+        @if (state.isRunning()) {
+          Running scenarios…
+        } @else {
+          Run compared scenarios
+        }
+      </button>
+      <button
+        type="button"
+        class="btn btn--ghost"
+        [disabled]="!state.hasResults()"
+        (click)="viewResults()"
+      >
+        View results
+      </button>
+    </div>
+    @if (state.error(); as err) {
+      <p class="error" role="alert">{{ err }}</p>
+    }
+    @if (state.lastRunAt(); as ran) {
+      <p class="run-meta">Last run: {{ ran }}</p>
+    }
+  </section>
+
+  <section class="panel" aria-labelledby="run-notes-heading">
+    <h2 id="run-notes-heading">Before you run</h2>
+    <ul class="limit-list">
+      <li>
+        Only scenarios marked <strong>Compare</strong> are simulated.
+      </li>
+      <li>
+        Catalog and BOM are shared; scenarios differ only by demand lines.
+      </li>
+      <li>
+        After a successful run you are taken to Results for deltas and charts.
+      </li>
+    </ul>
+  </section>
+</div>

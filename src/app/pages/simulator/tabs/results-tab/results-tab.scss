@@ -1,0 +1,66 @@
+@use '../../shared/sim-ui';
+
+:host {
+  display: block;
+}
+
+.results-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.9rem;
+  background: var(--surface);
+}
+
+.results-toolbar__meta {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.results-toolbar__actions {
+  margin-top: 0;
+}
+
+.results-toolbar__meta-block {
+  flex: 1;
+  min-width: 12rem;
+}
+
+.toolbar-select {
+  display: inline-flex;
+  margin: 0 0.25rem;
+}
+
+.toolbar-select select {
+  min-height: 2rem;
+  padding: 0.25rem 0.5rem;
+}
+
+.summary-cards {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+}
+
+.summary-card {
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  background: var(--surface-muted);
+}
+
+.summary-card h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+}
+
+.summary-card p {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--text-muted);
+}

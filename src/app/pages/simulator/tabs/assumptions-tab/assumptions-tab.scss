@@ -1,0 +1,136 @@
+@use '../../shared/sim-ui';
+
+:host {
+  display: block;
+}
+
+/* Shared inline cell inputs (catalog + BOM) */
+.cell-field {
+  display: block;
+  width: 100%;
+}
+
+.cell-field input {
+  width: 100%;
+  min-height: 2.15rem;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.cell-field input:hover {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+}
+
+.cell-field input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+
+.cell-field--num {
+  display: inline-block;
+  width: auto;
+  min-width: 4.5rem;
+}
+
+.cell-field--num input {
+  width: 4.5rem;
+  text-align: right;
+}
+
+/* Catalog tables */
+.data-table--edit {
+  table-layout: fixed;
+}
+
+.data-table--edit th,
+.data-table--edit td {
+  text-align: left;
+  vertical-align: middle;
+  white-space: normal;
+}
+
+.data-table--edit thead th {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.col-num {
+  width: 2.75rem;
+  text-align: center !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.col-name {
+  width: 28%;
+}
+
+.col-unit {
+  width: 22%;
+}
+
+.col-desc {
+  width: auto;
+}
+
+.col-actions {
+  width: 6.5rem;
+  text-align: right !important;
+}
+
+.muted {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.btn--table {
+  min-height: 2rem;
+  padding: 0.3rem 0.55rem;
+  font-size: 0.8rem;
+}
+
+.btn--danger {
+  color: #b42318;
+  border-color: color-mix(in srgb, #b42318 35%, var(--border));
+}
+
+.btn--danger:hover:not(:disabled) {
+  background: color-mix(in srgb, #b42318 10%, var(--surface));
+}
+
+.btn--danger:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.data-table--bom th,
+.data-table--bom td {
+  vertical-align: middle;
+}
+
+/* Stacked actions on narrow screens */
+@media (max-width: 640px) {
+  .col-num {
+    width: 2rem;
+  }
+
+  .col-actions {
+    width: 5.25rem;
+  }
+
+  .col-name,
+  .col-unit,
+  .col-desc {
+    width: auto;
+  }
+
+  .data-table--edit {
+    table-layout: auto;
+  }
+}

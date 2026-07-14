@@ -1,0 +1,15 @@
+<span class="help-tip">
+  <button
+    type="button"
+    class="help-tip__btn"
+    [attr.aria-expanded]="open()"
+    [attr.aria-label]="'Help: ' + label()"
+    (click)="toggle($event)"
+    (blur)="close()"
+  >
+    i
+  </button>
+  @if (open()) {
+    <span class="help-tip__pop" role="tooltip">{{ text() }}</span>
+  }
+</span>

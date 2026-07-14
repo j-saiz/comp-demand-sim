@@ -1,0 +1,39 @@
+<section class="page">
+  <header class="page__header">
+    <p class="eyebrow">Monte Carlo · component demand</p>
+    <h1>Demand uncertainty &amp; component requirement simulator</h1>
+    <p class="lede">
+      Simulate uncertain demand for assemblies over a planning horizon, explode
+      them through a bill of materials, and review expected component needs with
+      variability and planning percentiles — for planning conversations, not
+      procurement optimization.
+    </p>
+    <div class="actions">
+      <a routerLink="/simulator" class="btn btn--primary">Open simulator</a>
+      <a routerLink="/about" class="btn btn--ghost">About &amp; roadmap</a>
+    </div>
+  </header>
+
+  <div class="cards" role="list">
+    <article class="card" role="listitem">
+      <h2>Catalog &amp; BOM</h2>
+      <p>Edit components, assemblies, and units per assembly before you run.</p>
+    </article>
+    <article class="card" role="listitem">
+      <h2>Scenarios</h2>
+      <p>
+        Define assembly demand lines: quantity, start/end dates, and distribution.
+      </p>
+    </article>
+    <article class="card" role="listitem">
+      <h2>Outputs</h2>
+      <p>Component means, CV, P50–P95 planning levels, monthly tables, and fan charts.</p>
+    </article>
+  </div>
+
+  <aside class="note" role="note">
+    <strong>MVP boundary:</strong> No inventory, lead times, reorder points, or
+    purchase recommendations. Independent sampling across assemblies/months is
+    disclosed in the simulator. Default catalog is a PC industry pack.
+  </aside>
+</section>
