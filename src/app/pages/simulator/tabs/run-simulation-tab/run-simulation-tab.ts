@@ -1,10 +1,10 @@
 import { Component, computed, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { HelpTip } from '../../../../components/help-tip/help-tip';
-import { MONTH_LABELS } from '../../../../data/mvp-seed';
+import { planningYears } from '../../../../data/mvp-seed';
 import { DistributionType } from '../../../../models/domain';
 import {
-  allocateQuantityByMonth,
+  allocateQuantityByYear,
   assemblyName,
   DISTRIBUTION_OPTIONS,
 } from '../../../../services/scenario-forecast';
@@ -18,35 +18,46 @@ import { SimStateService } from '../../../../services/sim-state.service';
 })
 export class RunSimulationTab {
   readonly state = inject(SimStateService);
-  readonly monthLabels = MONTH_LABELS;
   readonly distributionOptions = DISTRIBUTION_OPTIONS;
+
+  readonly horizonLabel = computed(() => {
+    const s = this.state.settings();
+    const years = planningYears(
+      s.planningStartYear,
+      s.planningHorizonYears,
+    );
+    if (years.length === 0) return '';
+    return `${years[0]}–${years[years.length - 1]}`;
+  });
 
   readonly allocationPreview = computed(() => {
     const lines = this.state.activeScenario()?.lines ?? [];
-    const year = this.state.settings().planningYear;
+    const s = this.state.settings();
+    const horizon = planningYears(
+      s.planningStartYear,
+      s.planningHorizonYears,
+    );
     const assemblies = this.state.assemblies();
     const rows: {
       lineId: string;
       assemblyName: string;
-      month: number;
-      monthLabel: string;
+      year: number;
       units: number;
     }[] = [];
 
     for (const line of lines) {
-      const monthly = allocateQuantityByMonth(
+      const yearly = allocateQuantityByYear(
         Math.max(0, Math.round(Number(line.quantity) || 0)),
-        line.startDate,
-        line.endDate,
-        year,
+        Math.round(Number(line.startYear)),
+        Math.round(Number(line.endYear)),
+        horizon,
       );
-      for (const [month, units] of monthly) {
+      for (const [year, units] of yearly) {
         if (units <= 0) continue;
         rows.push({
           lineId: line.id,
           assemblyName: assemblyName(line.assemblyId, assemblies),
-          month,
-          monthLabel: MONTH_LABELS[month - 1] ?? String(month),
+          year,
           units,
         });
       }
@@ -54,7 +65,7 @@ export class RunSimulationTab {
 
     return rows.sort(
       (a, b) =>
-        a.month - b.month || a.assemblyName.localeCompare(b.assemblyName),
+        a.year - b.year || a.assemblyName.localeCompare(b.assemblyName),
     );
   });
 
@@ -101,12 +112,18 @@ export class RunSimulationTab {
     }
   }
 
-  onLineStartChange(lineId: string, startDate: string): void {
-    this.state.updateDemandLine(lineId, { startDate });
+  onLineStartYearChange(lineId: string, value: number | string): void {
+    const n = typeof value === 'number' ? value : Number(value);
+    if (Number.isFinite(n)) {
+      this.state.updateDemandLine(lineId, { startYear: Math.round(n) });
+    }
   }
 
-  onLineEndChange(lineId: string, endDate: string): void {
-    this.state.updateDemandLine(lineId, { endDate });
+  onLineEndYearChange(lineId: string, value: number | string): void {
+    const n = typeof value === 'number' ? value : Number(value);
+    if (Number.isFinite(n)) {
+      this.state.updateDemandLine(lineId, { endYear: Math.round(n) });
+    }
   }
 
   onLineDistributionChange(lineId: string, distribution: string): void {
@@ -137,22 +154,29 @@ export class RunSimulationTab {
     }
   }
 
-  onPlanningYearChange(value: number | string): void {
+  onPlanningStartYearChange(value: number | string): void {
     const n = typeof value === 'number' ? value : Number(value);
     if (Number.isFinite(n)) {
-      this.state.updateSettings({ planningYear: Math.round(n) });
+      this.state.updateSettings({ planningStartYear: Math.round(n) });
+    }
+  }
+
+  onPlanningHorizonYearsChange(value: number | string): void {
+    const n = typeof value === 'number' ? value : Number(value);
+    if (Number.isFinite(n)) {
+      this.state.updateSettings({ planningHorizonYears: Math.round(n) });
     }
   }
 
   onUncertaintyChange(value: number | string): void {
     const n = typeof value === 'number' ? value : Number(value);
     if (Number.isFinite(n)) {
-      this.state.updateSettings({ monthlyUncertaintyPct: n / 100 });
+      this.state.updateSettings({ yearlyUncertaintyPct: n / 100 });
     }
   }
 
   uncertaintyPctDisplay(): number {
-    return Math.round(this.state.settings().monthlyUncertaintyPct * 100);
+    return Math.round(this.state.settings().yearlyUncertaintyPct * 100);
   }
 
   run(): void {

@@ -4,8 +4,9 @@
     <h1>About Comp Demand Sim</h1>
     <p class="lede">
       A Monte Carlo application that translates uncertain assembly demand into
-      component requirements using a bill of materials. The default seed data is
-      a PC manufacturing pack; the engine is domain-agnostic.
+      component requirements using a bill of materials over a multi-year planning
+      horizon. The default seed data is a PC manufacturing pack; the engine is
+      domain-agnostic.
     </p>
   </header>
 
@@ -13,7 +14,7 @@
     <h2>Core planning question</h2>
     <p>
       Given uncertain assembly demand and timing, how many of each component
-      should I expect to need each month, and how variable are those estimates?
+      should I expect to need each year, and how variable are those estimates?
     </p>
 
     <h2>Domain model</h2>
@@ -29,7 +30,7 @@
         <strong>BOM</strong> — components required per assembly unit
       </li>
       <li>
-        <strong>Demand lines</strong> — assembly, quantity, dates, distribution
+        <strong>Demand lines</strong> — assembly, quantity, years, distribution
       </li>
     </ul>
 

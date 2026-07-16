@@ -4,14 +4,14 @@ import {
   BomMatrix,
   ComponentDef,
   ForecastCell,
-  MonthlyAllocationRow,
   ScenarioDemandLine,
   ScenarioResultView,
   SimulationRawResult,
   SimulationSettings,
   UserScenario,
+  YearlyAllocationRow,
 } from '../models/domain';
-import { MONTHS } from '../data/mvp-seed';
+import { planningYears } from '../data/mvp-seed';
 import { SeededRng } from './rng';
 import {
   assemblyName,
@@ -33,12 +33,10 @@ export interface CatalogSnapshot {
 
 @Injectable({ providedIn: 'root' })
 export class MonteCarloService {
-  readonly months = [...MONTHS];
-
   validateForecast(cells: ForecastCell[]): string[] {
     const messages: string[] = [];
     for (const cell of cells) {
-      const path = `month ${cell.month} / ${cell.assemblyId}`;
+      const path = `year ${cell.year} / ${cell.assemblyId}`;
       const issues = validateDistribution(cell, path);
       for (const issue of issues) {
         messages.push(`${issue.path}: ${issue.message}`);
@@ -65,7 +63,8 @@ export class MonteCarloService {
 
     const lineIssues = validateDemandLines(
       scenario.lines,
-      settings.planningYear,
+      settings.planningStartYear,
+      settings.planningHorizonYears,
       catalog.assemblies,
     );
     if (lineIssues.length > 0) {
@@ -74,13 +73,14 @@ export class MonteCarloService {
 
     const forecast = buildForecastFromLines(
       scenario.lines,
-      settings.planningYear,
-      settings.monthlyUncertaintyPct,
+      settings.planningStartYear,
+      settings.planningHorizonYears,
+      settings.yearlyUncertaintyPct,
     );
 
     if (forecast.length === 0) {
       throw new Error(
-        'No demand falls inside the planning year. Adjust quantities or date ranges.',
+        'No demand falls inside the planning horizon. Adjust quantities or year ranges.',
       );
     }
 
@@ -89,7 +89,11 @@ export class MonteCarloService {
       throw new Error(`Invalid forecast: ${issues.join('; ')}`);
     }
 
-    const raw = this.simulate(scenario, forecast, catalog, settings);
+    const years = planningYears(
+      settings.planningStartYear,
+      settings.planningHorizonYears,
+    );
+    const raw = this.simulate(scenario, forecast, catalog, settings, years);
     return this.toView(raw, scenario, settings, forecast, catalog);
   }
 
@@ -98,34 +102,34 @@ export class MonteCarloService {
     forecast: ForecastCell[],
     catalog: CatalogSnapshot,
     settings: SimulationSettings,
+    years: number[],
   ): SimulationRawResult {
     const iterations = Math.max(1, Math.floor(settings.iterations));
-    const months = this.months;
     const componentIds = catalog.components.map((c) => c.id);
     const bom = catalog.bom;
+    const yearIndex = new Map(years.map((y, i) => [y, i]));
 
     const demand: Record<string, number[][]> = {};
     const annual: Record<string, number[]> = {};
 
     for (const cid of componentIds) {
-      demand[cid] = months.map(() => new Array<number>(iterations).fill(0));
+      demand[cid] = years.map(() => new Array<number>(iterations).fill(0));
       annual[cid] = new Array<number>(iterations).fill(0);
     }
 
     const rng = new SeededRng(settings.seed);
 
-    // Sample each forecast contribution independently (preserves per-line distributions).
     for (let iter = 0; iter < iterations; iter++) {
       for (const cell of forecast) {
         const units = sampleBuildQuantity(cell, rng);
-        const mi = cell.month - 1;
-        if (mi < 0 || mi >= months.length) continue;
+        const yi = yearIndex.get(cell.year);
+        if (yi === undefined) continue;
 
         const recipe = bom[cell.assemblyId] ?? {};
         for (const cid of componentIds) {
           const perUnit = recipe[cid] ?? 0;
           const qty = roundComponentQty(units * perUnit);
-          demand[cid][mi][iter] += qty;
+          demand[cid][yi][iter] += qty;
           annual[cid][iter] += qty;
         }
       }
@@ -135,7 +139,7 @@ export class MonteCarloService {
       scenarioId: scenario.id,
       iterations,
       seed: settings.seed,
-      months: [...months],
+      years: [...years],
       componentIds,
       demand,
       annual,
@@ -152,7 +156,7 @@ export class MonteCarloService {
     const nameById = new Map(catalog.components.map((c) => [c.id, c.name]));
     const levels = settings.percentiles;
 
-    const componentAnnual = raw.componentIds.map((componentId) => {
+    const componentHorizon = raw.componentIds.map((componentId) => {
       const stats = computeStats(raw.annual[componentId], levels);
       return {
         componentId,
@@ -161,27 +165,27 @@ export class MonteCarloService {
       };
     });
 
-    const componentByMonth = raw.componentIds.flatMap((componentId) =>
-      raw.months.map((month, mi) => ({
+    const componentByYear = raw.componentIds.flatMap((componentId) =>
+      raw.years.map((year, yi) => ({
         componentId,
         componentName: nameById.get(componentId) ?? componentId,
-        month,
-        stats: computeStats(raw.demand[componentId][mi], levels),
+        year,
+        stats: computeStats(raw.demand[componentId][yi], levels),
       })),
     );
 
-    const cvRanking = [...componentAnnual].sort(
+    const cvRanking = [...componentHorizon].sort(
       (a, b) => b.stats.cv - a.stats.cv,
     );
 
-    const monthlyBands: ScenarioResultView['monthlyBands'] = {};
+    const yearlyBands: ScenarioResultView['yearlyBands'] = {};
     for (const componentId of raw.componentIds) {
-      monthlyBands[componentId] = raw.months.map((month, mi) => {
-        const stats = computeStats(raw.demand[componentId][mi], [
+      yearlyBands[componentId] = raw.years.map((year, yi) => {
+        const stats = computeStats(raw.demand[componentId][yi], [
           10, 25, 50, 75, 90,
         ]);
         return {
-          month,
+          year,
           mean: stats.mean,
           p10: stats.percentiles['p10'] ?? stats.min,
           p25: stats.percentiles['p25'] ?? stats.min,
@@ -191,8 +195,7 @@ export class MonteCarloService {
       });
     }
 
-    const monthlyAllocation: MonthlyAllocationRow[] = forecast.map((cell) => ({
-      month: cell.month,
+    const yearlyAllocation: YearlyAllocationRow[] = forecast.map((cell) => ({
       year: cell.year,
       assemblyId: cell.assemblyId,
       assemblyName: assemblyName(cell.assemblyId, catalog.assemblies),
@@ -209,14 +212,15 @@ export class MonteCarloService {
       scenarioName: scenario.name,
       iterations: raw.iterations,
       seed: raw.seed,
-      months: raw.months,
-      planningYear: settings.planningYear,
+      years: raw.years,
+      planningStartYear: settings.planningStartYear,
+      planningHorizonYears: settings.planningHorizonYears,
       lines,
-      monthlyAllocation,
-      componentAnnual,
-      componentByMonth,
+      yearlyAllocation,
+      componentHorizon,
+      componentByYear,
       cvRanking,
-      monthlyBands,
+      yearlyBands,
     };
   }
 }

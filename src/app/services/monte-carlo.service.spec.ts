@@ -29,8 +29,9 @@ describe('MonteCarloService', () => {
     iterations: 200,
     seed: 1,
     percentiles: [10, 25, 50, 75, 80, 90, 95],
-    monthlyUncertaintyPct: 0.15,
-    planningYear: 2026,
+    yearlyUncertaintyPct: 0.15,
+    planningStartYear: 2026,
+    planningHorizonYears: 15,
   };
 
   function scenario(lines: ScenarioDemandLine[]): UserScenario {
@@ -43,33 +44,37 @@ describe('MonteCarloService', () => {
   });
 
   it('explodes fixed assembly demand through the BOM exactly', () => {
-    // 12 assembly units in January only → partX = 24, partY = 0
+    // 12 assembly units in 2026 only → partX = 24, partY = 0
     const result = service.runUserScenario(
       scenario([
         {
           id: 'l1',
           assemblyId: 'asmA',
           quantity: 12,
-          startDate: '2026-01-01',
-          endDate: '2026-01-31',
+          startYear: 2026,
+          endYear: 2026,
           distribution: 'fixed',
         },
       ]),
-      { ...settings, monthlyUncertaintyPct: 0.5 },
+      { ...settings, yearlyUncertaintyPct: 0.5 },
       { components, assemblies, bom },
     );
 
-    const partX = result.componentAnnual.find((c) => c.componentId === 'partX');
-    const partY = result.componentAnnual.find((c) => c.componentId === 'partY');
+    const partX = result.componentHorizon.find(
+      (c) => c.componentId === 'partX',
+    );
+    const partY = result.componentHorizon.find(
+      (c) => c.componentId === 'partY',
+    );
     expect(partX?.stats.mean).toBe(24);
     expect(partX?.stats.min).toBe(24);
     expect(partX?.stats.max).toBe(24);
     expect(partY?.stats.mean).toBe(0);
 
-    const janX = result.componentByMonth.find(
-      (r) => r.componentId === 'partX' && r.month === 1,
+    const yearX = result.componentByYear.find(
+      (r) => r.componentId === 'partX' && r.year === 2026,
     );
-    expect(janX?.stats.mean).toBe(24);
+    expect(yearX?.stats.mean).toBe(24);
   });
 
   it('is reproducible for the same seed and inputs', () => {
@@ -78,8 +83,8 @@ describe('MonteCarloService', () => {
         id: 'l1',
         assemblyId: 'asmA',
         quantity: 100,
-        startDate: '2026-01-01',
-        endDate: '2026-06-30',
+        startYear: 2026,
+        endYear: 2030,
         distribution: 'triangular',
       },
     ]);
@@ -87,8 +92,8 @@ describe('MonteCarloService', () => {
     const a = service.runUserScenario(input, settings, catalog);
     const b = service.runUserScenario(input, settings, catalog);
 
-    expect(a.componentAnnual).toEqual(b.componentAnnual);
-    expect(a.componentByMonth).toEqual(b.componentByMonth);
+    expect(a.componentHorizon).toEqual(b.componentHorizon);
+    expect(a.componentByYear).toEqual(b.componentByYear);
   });
 
   it('throws when components catalog is empty', () => {
@@ -99,8 +104,8 @@ describe('MonteCarloService', () => {
             id: 'l1',
             assemblyId: 'asmA',
             quantity: 1,
-            startDate: '2026-01-01',
-            endDate: '2026-01-31',
+            startYear: 2026,
+            endYear: 2026,
             distribution: 'fixed',
           },
         ]),
@@ -118,8 +123,8 @@ describe('MonteCarloService', () => {
             id: 'l1',
             assemblyId: 'asmA',
             quantity: 1,
-            startDate: '2026-01-01',
-            endDate: '2026-01-31',
+            startYear: 2026,
+            endYear: 2026,
             distribution: 'fixed',
           },
         ]),
@@ -137,8 +142,8 @@ describe('MonteCarloService', () => {
             id: 'l1',
             assemblyId: 'missing',
             quantity: 10,
-            startDate: '2026-01-01',
-            endDate: '2026-01-31',
+            startYear: 2026,
+            endYear: 2026,
             distribution: 'fixed',
           },
         ]),
@@ -148,7 +153,7 @@ describe('MonteCarloService', () => {
     ).toThrow(/valid assembly|Line 1/i);
   });
 
-  it('throws when no demand falls in the planning year', () => {
+  it('throws when no demand falls in the planning horizon', () => {
     expect(() =>
       service.runUserScenario(
         scenario([
@@ -156,26 +161,26 @@ describe('MonteCarloService', () => {
             id: 'l1',
             assemblyId: 'asmA',
             quantity: 10,
-            startDate: '2025-01-01',
-            endDate: '2025-06-30',
+            startYear: 2000,
+            endYear: 2005,
             distribution: 'fixed',
           },
         ]),
         settings,
         { components, assemblies, bom },
       ),
-    ).toThrow(/planning year/i);
+    ).toThrow(/planning horizon/i);
   });
 
-  it('returns months 1–12 and percentile keys for UI/export', () => {
+  it('returns horizon years and percentile keys for UI/export', () => {
     const result = service.runUserScenario(
       scenario([
         {
           id: 'l1',
           assemblyId: 'asmA',
           quantity: 24,
-          startDate: '2026-01-01',
-          endDate: '2026-12-31',
+          startYear: 2026,
+          endYear: 2040,
           distribution: 'fixed',
         },
       ]),
@@ -183,12 +188,16 @@ describe('MonteCarloService', () => {
       { components, assemblies, bom },
     );
 
-    expect(result.months).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
-    expect(result.componentAnnual.map((c) => c.componentId).sort()).toEqual([
+    expect(result.years).toEqual(
+      Array.from({ length: 15 }, (_, i) => 2026 + i),
+    );
+    expect(result.planningHorizonYears).toBe(15);
+    expect(result.planningStartYear).toBe(2026);
+    expect(result.componentHorizon.map((c) => c.componentId).sort()).toEqual([
       'partX',
       'partY',
     ]);
-    const p = result.componentAnnual[0].stats.percentiles;
+    const p = result.componentHorizon[0].stats.percentiles;
     for (const key of ['p50', 'p80', 'p90', 'p95']) {
       expect(p[key]).toBeDefined();
     }

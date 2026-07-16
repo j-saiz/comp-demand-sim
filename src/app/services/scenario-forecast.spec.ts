@@ -1,15 +1,20 @@
 import {
-  allocateQuantityByMonth,
+  allocateQuantityByYear,
   buildForecastFromLines,
   normalizeDistribution,
   validateDemandLines,
 } from './scenario-forecast';
 import type { Assembly, ScenarioDemandLine } from '../models/domain';
+import { planningYears } from '../data/mvp-seed';
 
 const assemblies: Assembly[] = [
   { id: 'a1', name: 'Assembly One', description: '' },
   { id: 'a2', name: 'Assembly Two', description: '' },
 ];
+
+const HORIZON_START = 2026;
+const HORIZON_LEN = 15;
+const HORIZON = planningYears(HORIZON_START, HORIZON_LEN);
 
 function line(
   partial: Partial<ScenarioDemandLine> & Pick<ScenarioDemandLine, 'id'>,
@@ -17,114 +22,94 @@ function line(
   return {
     assemblyId: 'a1',
     quantity: 100,
-    startDate: '2026-01-01',
-    endDate: '2026-12-31',
+    startYear: HORIZON_START,
+    endYear: HORIZON_START + HORIZON_LEN - 1,
     distribution: 'fixed',
     ...partial,
   };
 }
 
-describe('allocateQuantityByMonth', () => {
-  it('sums to quantity across a full year', () => {
-    const qty = 365;
-    const monthly = allocateQuantityByMonth(
+describe('allocateQuantityByYear', () => {
+  it('sums to quantity across the full horizon', () => {
+    const qty = 150;
+    const yearly = allocateQuantityByYear(
       qty,
-      '2026-01-01',
-      '2026-12-31',
-      2026,
+      HORIZON_START,
+      HORIZON_START + HORIZON_LEN - 1,
+      HORIZON,
     );
     let sum = 0;
-    for (const v of monthly.values()) sum += v;
+    for (const v of yearly.values()) sum += v;
     expect(sum).toBe(qty);
   });
 
-  it('only allocates months that overlap the range', () => {
-    const monthly = allocateQuantityByMonth(
-      90,
-      '2026-03-01',
-      '2026-05-31',
-      2026,
-    );
-    expect(monthly.get(1)).toBe(0);
-    expect(monthly.get(2)).toBe(0);
-    expect(monthly.get(3)! + monthly.get(4)! + monthly.get(5)!).toBe(90);
-    expect(monthly.get(6)).toBe(0);
+  it('only allocates years that overlap the range', () => {
+    const yearly = allocateQuantityByYear(90, 2028, 2030, HORIZON);
+    expect(yearly.get(2026)).toBe(0);
+    expect(yearly.get(2027)).toBe(0);
+    expect(
+      (yearly.get(2028) ?? 0) +
+        (yearly.get(2029) ?? 0) +
+        (yearly.get(2030) ?? 0),
+    ).toBe(90);
+    expect(yearly.get(2031)).toBe(0);
   });
 
-  it('puts all quantity in one month for a single-day range', () => {
-    const monthly = allocateQuantityByMonth(
-      50,
-      '2026-07-15',
-      '2026-07-15',
-      2026,
-    );
-    expect(monthly.get(7)).toBe(50);
+  it('puts all quantity in one year for a single-year range', () => {
+    const yearly = allocateQuantityByYear(50, 2032, 2032, HORIZON);
+    expect(yearly.get(2032)).toBe(50);
     let sum = 0;
-    for (const v of monthly.values()) sum += v;
+    for (const v of yearly.values()) sum += v;
     expect(sum).toBe(50);
   });
 
-  it('returns zeros when range is outside planning year', () => {
-    const monthly = allocateQuantityByMonth(
-      100,
-      '2025-01-01',
-      '2025-06-30',
-      2026,
-    );
-    for (const v of monthly.values()) {
+  it('returns zeros when range is outside the planning horizon', () => {
+    const yearly = allocateQuantityByYear(100, 2000, 2005, HORIZON);
+    for (const v of yearly.values()) {
       expect(v).toBe(0);
     }
   });
 
-  it('returns zeros for reversed dates', () => {
-    const monthly = allocateQuantityByMonth(
-      100,
-      '2026-06-01',
-      '2026-01-01',
-      2026,
-    );
-    for (const v of monthly.values()) {
+  it('returns zeros for reversed years', () => {
+    const yearly = allocateQuantityByYear(100, 2030, 2026, HORIZON);
+    for (const v of yearly.values()) {
       expect(v).toBe(0);
     }
   });
 
-  it('returns zeros for invalid dates', () => {
-    const monthly = allocateQuantityByMonth(
-      100,
-      'not-a-date',
-      '2026-12-31',
-      2026,
-    );
-    for (const v of monthly.values()) {
-      expect(v).toBe(0);
-    }
+  it('spreads evenly across equal years', () => {
+    // 3 years, 30 units → 10 each
+    const yearly = allocateQuantityByYear(30, 2026, 2028, HORIZON);
+    expect(yearly.get(2026)).toBe(10);
+    expect(yearly.get(2027)).toBe(10);
+    expect(yearly.get(2028)).toBe(10);
   });
 
-  it('gives more weight to months with more overlapping days', () => {
-    // Feb has fewer days than March in a non-leap-ish setup — use Apr (30) vs May (31)
-    // over a range covering full Apr and full May with equal calendar presence
-    const monthly = allocateQuantityByMonth(
-      610,
-      '2026-04-01',
-      '2026-05-31',
-      2026,
+  it('uses largest remainder so totals still sum when uneven', () => {
+    // 3 years, 10 units → 4, 3, 3
+    const yearly = allocateQuantityByYear(10, 2026, 2028, HORIZON);
+    let sum = 0;
+    for (const y of [2026, 2027, 2028]) {
+      sum += yearly.get(y) ?? 0;
+    }
+    expect(sum).toBe(10);
+    expect(Math.max(...[2026, 2027, 2028].map((y) => yearly.get(y) ?? 0))).toBe(
+      4,
     );
-    // May has 31 days, Apr 30 → May should get more or equal after rounding
-    expect(monthly.get(5)!).toBeGreaterThanOrEqual(monthly.get(4)!);
-    expect((monthly.get(4) ?? 0) + (monthly.get(5) ?? 0)).toBe(610);
   });
 });
 
 describe('validateDemandLines', () => {
   it('rejects empty lines', () => {
-    const issues = validateDemandLines([], 2026, assemblies);
+    const issues = validateDemandLines([], HORIZON_START, HORIZON_LEN, assemblies);
     expect(issues.some((i) => i.path === 'lines')).toBe(true);
   });
 
   it('rejects when catalog has no assemblies', () => {
     const issues = validateDemandLines(
       [line({ id: '1' })],
-      2026,
+      HORIZON_START,
+      HORIZON_LEN,
       [],
     );
     expect(issues.some((i) => i.path === 'catalog')).toBe(true);
@@ -133,7 +118,8 @@ describe('validateDemandLines', () => {
   it('rejects unknown assembly id', () => {
     const issues = validateDemandLines(
       [line({ id: '1', assemblyId: 'missing' })],
-      2026,
+      HORIZON_START,
+      HORIZON_LEN,
       assemblies,
     );
     expect(issues.some((i) => /valid assembly/i.test(i.message))).toBe(true);
@@ -143,7 +129,8 @@ describe('validateDemandLines', () => {
     expect(
       validateDemandLines(
         [line({ id: '1', quantity: -1 })],
-        2026,
+        HORIZON_START,
+        HORIZON_LEN,
         assemblies,
       ).some((i) => /nonnegative/i.test(i.message)),
     ).toBe(true);
@@ -151,22 +138,24 @@ describe('validateDemandLines', () => {
     expect(
       validateDemandLines(
         [line({ id: '1', quantity: 1.5 })],
-        2026,
+        HORIZON_START,
+        HORIZON_LEN,
         assemblies,
       ).some((i) => /whole number/i.test(i.message)),
     ).toBe(true);
   });
 
-  it('rejects end before start', () => {
+  it('rejects end year before start year', () => {
     const issues = validateDemandLines(
       [
         line({
           id: '1',
-          startDate: '2026-06-01',
-          endDate: '2026-01-01',
+          startYear: 2030,
+          endYear: 2026,
         }),
       ],
-      2026,
+      HORIZON_START,
+      HORIZON_LEN,
       assemblies,
     );
     expect(issues.some((i) => /on or after start/i.test(i.message))).toBe(
@@ -174,10 +163,21 @@ describe('validateDemandLines', () => {
     );
   });
 
+  it('rejects ranges that do not overlap the horizon', () => {
+    const issues = validateDemandLines(
+      [line({ id: '1', startYear: 1990, endYear: 1995 })],
+      HORIZON_START,
+      HORIZON_LEN,
+      assemblies,
+    );
+    expect(issues.some((i) => /planning horizon/i.test(i.message))).toBe(true);
+  });
+
   it('accepts a valid line', () => {
     const issues = validateDemandLines(
       [line({ id: '1', quantity: 10 })],
-      2026,
+      HORIZON_START,
+      HORIZON_LEN,
       assemblies,
     );
     expect(issues).toEqual([]);
@@ -191,15 +191,17 @@ describe('buildForecastFromLines', () => {
         line({
           id: '1',
           quantity: 12,
-          startDate: '2026-01-01',
-          endDate: '2026-01-31',
+          startYear: 2026,
+          endYear: 2026,
           distribution: 'fixed',
         }),
       ],
-      2026,
+      HORIZON_START,
+      HORIZON_LEN,
       0.15,
     );
     expect(cells.length).toBe(1);
+    expect(cells[0].year).toBe(2026);
     expect(cells[0].distribution).toBe('fixed');
     expect(cells[0].min).toBe(cells[0].expected);
     expect(cells[0].max).toBe(cells[0].expected);
@@ -212,12 +214,13 @@ describe('buildForecastFromLines', () => {
         line({
           id: '1',
           quantity: 100,
-          startDate: '2026-01-01',
-          endDate: '2026-01-31',
+          startYear: 2026,
+          endYear: 2026,
           distribution: 'triangular',
         }),
       ],
-      2026,
+      HORIZON_START,
+      HORIZON_LEN,
       0.15,
     );
     expect(cells[0].distribution).toBe('triangular');
@@ -231,41 +234,43 @@ describe('buildForecastFromLines', () => {
         line({
           id: '1',
           quantity: 50,
-          startDate: '2026-01-01',
-          endDate: '2026-01-31',
+          startYear: 2026,
+          endYear: 2026,
           distribution: 'uniform',
         }),
       ],
-      2026,
+      HORIZON_START,
+      HORIZON_LEN,
       0,
     );
     expect(cells[0].distribution).toBe('fixed');
     expect(cells[0].min).toBe(cells[0].max);
   });
 
-  it('creates separate cells for multiple lines in the same month/assembly', () => {
+  it('creates separate cells for multiple lines in the same year/assembly', () => {
     const cells = buildForecastFromLines(
       [
         line({
           id: '1',
           quantity: 10,
-          startDate: '2026-01-01',
-          endDate: '2026-01-31',
+          startYear: 2026,
+          endYear: 2026,
           distribution: 'fixed',
         }),
         line({
           id: '2',
           quantity: 5,
-          startDate: '2026-01-01',
-          endDate: '2026-01-31',
+          startYear: 2026,
+          endYear: 2026,
           distribution: 'triangular',
         }),
       ],
-      2026,
+      HORIZON_START,
+      HORIZON_LEN,
       0.1,
     );
     expect(cells.length).toBe(2);
-    expect(cells.every((c) => c.month === 1 && c.assemblyId === 'a1')).toBe(
+    expect(cells.every((c) => c.year === 2026 && c.assemblyId === 'a1')).toBe(
       true,
     );
   });

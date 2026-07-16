@@ -8,10 +8,12 @@ import {
 } from '@angular/core';
 import * as Highcharts from 'highcharts';
 import 'highcharts/highcharts-more';
-import { MONTH_LABELS } from '../../data/mvp-seed';
 
 export interface FanBandPoint {
-  month: number;
+  /** Calendar year (or legacy period index). */
+  year?: number;
+  /** @deprecated Prefer year */
+  month?: number;
   mean: number;
   p10: number;
   p25: number;
@@ -58,13 +60,19 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+function periodLabel(point: FanBandPoint): string {
+  if (point.year != null) return String(point.year);
+  if (point.month != null) return String(point.month);
+  return '';
+}
+
 @Component({
   selector: 'app-fan-chart',
   templateUrl: './fan-chart.html',
   styleUrl: './fan-chart.scss',
 })
 export class FanChart implements OnDestroy {
-  readonly title = input('Monthly demand uncertainty');
+  readonly title = input('Yearly demand uncertainty');
   /** Used for single-series fan subtitle / a11y. */
   readonly componentName = input('Component');
   /** Single-series fan bands (legacy / simple). Prefer `series` for multi. */
@@ -72,6 +80,7 @@ export class FanChart implements OnDestroy {
   /** One or more component series. When length > 1, plots mean lines only. */
   readonly series = input<FanChartSeries[]>([]);
   readonly height = input(480);
+  readonly xAxisTitle = input('Year');
 
   private readonly chartEl = viewChild<ElementRef<HTMLElement>>('chart');
   private chart?: Highcharts.Chart;
@@ -82,7 +91,10 @@ export class FanChart implements OnDestroy {
       const title = this.title();
       const componentName = this.componentName();
       const height = this.height();
-      queueMicrotask(() => this.render(series, title, componentName, height));
+      const xAxisTitle = this.xAxisTitle();
+      queueMicrotask(() =>
+        this.render(series, title, componentName, height, xAxisTitle),
+      );
     });
   }
 
@@ -115,6 +127,7 @@ export class FanChart implements OnDestroy {
     title: string,
     componentName: string,
     height: number,
+    xAxisTitle: string,
   ): void {
     const el = this.chartEl()?.nativeElement;
     if (!el) return;
@@ -124,13 +137,11 @@ export class FanChart implements OnDestroy {
       this.chart?.destroy();
       this.chart = undefined;
       el.innerHTML =
-        '<p class="fan-chart__empty">Run a simulation to plot monthly demand.</p>';
+        '<p class="fan-chart__empty">Run a simulation to plot yearly demand.</p>';
       return;
     }
 
-    const categories = nonEmpty[0].bands.map(
-      (b) => MONTH_LABELS[b.month - 1] ?? `M${b.month}`,
-    );
+    const categories = nonEmpty[0].bands.map((b) => periodLabel(b));
 
     const multi = nonEmpty.length > 1;
     const chartSeries: Highcharts.SeriesOptionsType[] = multi
@@ -138,7 +149,7 @@ export class FanChart implements OnDestroy {
       : this.buildSingleFanSeries(nonEmpty[0]);
 
     const subtitle = multi
-      ? 'Mean monthly demand by component (select one component for P10–P90 fan bands)'
+      ? 'Mean yearly demand by series (select one component for P10–P90 fan bands)'
       : `${componentName} — mean with P10/P90 and P25/P75 bands`;
 
     const options: Highcharts.Options = {
@@ -160,7 +171,7 @@ export class FanChart implements OnDestroy {
       },
       xAxis: {
         categories: [...categories],
-        title: { text: 'Month' },
+        title: { text: xAxisTitle },
       },
       yAxis: {
         title: { text: 'Units' },
@@ -177,8 +188,8 @@ export class FanChart implements OnDestroy {
       series: chartSeries,
       accessibility: {
         description: multi
-          ? `Time series of mean monthly demand for ${nonEmpty.length} components.`
-          : `Fan chart of monthly ${componentName} demand showing mean and percentile bands.`,
+          ? `Time series of mean yearly demand for ${nonEmpty.length} series.`
+          : `Fan chart of yearly ${componentName} demand showing mean and percentile bands.`,
       },
     };
 

@@ -5,38 +5,19 @@ import {
   ScenarioDemandLine,
   ValidationIssue,
 } from '../models/domain';
-import { MONTHS } from '../data/mvp-seed';
-
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-
-export function parseIsoDate(value: string): Date | null {
-  if (!DATE_RE.test(value)) return null;
-  const [y, m, d] = value.split('-').map(Number);
-  const date = new Date(y, m - 1, d);
-  if (
-    date.getFullYear() !== y ||
-    date.getMonth() !== m - 1 ||
-    date.getDate() !== d
-  ) {
-    return null;
-  }
-  return date;
-}
-
-export function formatIsoDate(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
+import { planningYears } from '../data/mvp-seed';
 
 export function validateDemandLines(
   lines: ScenarioDemandLine[],
-  planningYear: number,
+  planningStartYear: number,
+  planningHorizonYears: number,
   assemblies: Assembly[],
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const validAssemblyIds = new Set(assemblies.map((a) => a.id));
+  const years = planningYears(planningStartYear, planningHorizonYears);
+  const firstYear = years[0];
+  const lastYear = years[years.length - 1];
 
   if (assemblies.length === 0) {
     issues.push({
@@ -69,28 +50,24 @@ export function validateDemandLines(
       issues.push({ path, message: 'Quantity must be a whole number.' });
     }
 
-    const start = parseIsoDate(line.startDate);
-    const end = parseIsoDate(line.endDate);
-
-    if (!start) {
-      issues.push({ path, message: 'Start date must be a valid date.' });
-    }
-    if (!end) {
-      issues.push({ path, message: 'End date must be a valid date.' });
-    }
-    if (start && end && end < start) {
-      issues.push({ path, message: 'End date must be on or after start date.' });
+    if (!Number.isInteger(line.startYear) || !Number.isInteger(line.endYear)) {
+      issues.push({ path, message: 'Start and end years must be whole numbers.' });
     }
 
-    if (start && end) {
-      const overlapsYear =
-        start.getFullYear() <= planningYear && end.getFullYear() >= planningYear;
-      if (!overlapsYear) {
-        issues.push({
-          path,
-          message: `Date range does not overlap planning year ${planningYear}.`,
-        });
-      }
+    if (line.endYear < line.startYear) {
+      issues.push({
+        path,
+        message: 'End year must be on or after start year.',
+      });
+    }
+
+    const overlaps =
+      line.startYear <= lastYear && line.endYear >= firstYear;
+    if (!overlaps) {
+      issues.push({
+        path,
+        message: `Year range does not overlap the planning horizon (${firstYear}–${lastYear}).`,
+      });
     }
   });
 
@@ -98,37 +75,32 @@ export function validateDemandLines(
 }
 
 /**
- * Allocate integer unit counts across months using day-weighted shares
- * and largest-remainder rounding so monthly totals sum to `quantity`.
+ * Allocate integer unit counts across planning-horizon years using equal
+ * weight per overlapping year and largest-remainder rounding so yearly
+ * totals sum to `quantity`.
  */
-export function allocateQuantityByMonth(
+export function allocateQuantityByYear(
   quantity: number,
-  startDate: string,
-  endDate: string,
-  planningYear: number,
+  startYear: number,
+  endYear: number,
+  horizonYears: number[],
 ): Map<number, number> {
   const result = new Map<number, number>();
-  for (const month of MONTHS) {
-    result.set(month, 0);
+  for (const y of horizonYears) {
+    result.set(y, 0);
   }
 
-  if (quantity <= 0) {
-    return result;
-  }
-
-  const start = parseIsoDate(startDate);
-  const end = parseIsoDate(endDate);
-  if (!start || !end || end < start) {
+  if (quantity <= 0 || endYear < startYear || horizonYears.length === 0) {
     return result;
   }
 
   const weights = new Map<number, number>();
   let totalWeight = 0;
 
-  for (const month of MONTHS) {
-    const days = overlapDaysInMonth(start, end, planningYear, month);
-    weights.set(month, days);
-    totalWeight += days;
+  for (const y of horizonYears) {
+    const inRange = y >= startYear && y <= endYear ? 1 : 0;
+    weights.set(y, inRange);
+    totalWeight += inRange;
   }
 
   if (totalWeight <= 0) {
@@ -139,76 +111,60 @@ export function allocateQuantityByMonth(
   const floors = new Map<number, number>();
   let assigned = 0;
 
-  for (const month of MONTHS) {
-    const share = (quantity * (weights.get(month) ?? 0)) / totalWeight;
-    exact.set(month, share);
+  for (const y of horizonYears) {
+    const share = (quantity * (weights.get(y) ?? 0)) / totalWeight;
+    exact.set(y, share);
     const floored = Math.floor(share);
-    floors.set(month, floored);
+    floors.set(y, floored);
     assigned += floored;
   }
 
   let remaining = quantity - assigned;
-  const order = [...MONTHS].sort((a, b) => {
+  const order = [...horizonYears].sort((a, b) => {
     const fa = (exact.get(a) ?? 0) - (floors.get(a) ?? 0);
     const fb = (exact.get(b) ?? 0) - (floors.get(b) ?? 0);
     return fb - fa;
   });
 
-  for (const month of order) {
+  for (const y of order) {
     if (remaining <= 0) break;
-    if ((weights.get(month) ?? 0) <= 0) continue;
-    floors.set(month, (floors.get(month) ?? 0) + 1);
+    if ((weights.get(y) ?? 0) <= 0) continue;
+    floors.set(y, (floors.get(y) ?? 0) + 1);
     remaining -= 1;
   }
 
-  for (const month of MONTHS) {
-    result.set(month, floors.get(month) ?? 0);
+  for (const y of horizonYears) {
+    result.set(y, floors.get(y) ?? 0);
   }
 
   return result;
 }
 
-function overlapDaysInMonth(
-  rangeStart: Date,
-  rangeEnd: Date,
-  year: number,
-  month: number,
-): number {
-  const monthStart = new Date(year, month - 1, 1);
-  const monthEnd = new Date(year, month, 0);
-
-  const start = rangeStart > monthStart ? rangeStart : monthStart;
-  const end = rangeEnd < monthEnd ? rangeEnd : monthEnd;
-
-  if (end < start) return 0;
-
-  const ms = end.getTime() - start.getTime();
-  return Math.floor(ms / 86_400_000) + 1;
-}
-
 /**
- * Convert scenario demand lines into monthly forecast cells for Monte Carlo.
- * Each line keeps its own distribution; multiple lines in the same month/assembly
+ * Convert scenario demand lines into yearly forecast cells for Monte Carlo.
+ * Each line keeps its own distribution; multiple lines in the same year/assembly
  * become separate cells that are sampled independently and summed.
  */
 export function buildForecastFromLines(
   lines: ScenarioDemandLine[],
-  planningYear: number,
-  monthlyUncertaintyPct: number,
+  planningStartYear: number,
+  planningHorizonYears: number,
+  yearlyUncertaintyPct: number,
 ): ForecastCell[] {
-  const spread = Math.max(0, monthlyUncertaintyPct);
+  const horizon = planningYears(planningStartYear, planningHorizonYears);
+  const spread = Math.max(0, yearlyUncertaintyPct);
   const cells: ForecastCell[] = [];
 
   for (const line of lines) {
     const distribution = normalizeDistribution(line.distribution);
-    const monthly = allocateQuantityByMonth(
+    const yearly = allocateQuantityByYear(
       Math.max(0, Math.round(line.quantity)),
-      line.startDate,
-      line.endDate,
-      planningYear,
+      line.startYear,
+      line.endYear,
+      horizon,
     );
 
-    for (const [month, expected] of monthly) {
+    for (const [year, expected] of yearly) {
       if (expected <= 0) continue;
       const { min, max, distribution: effectiveDist } = bandAroundExpected(
         expected,
@@ -217,8 +173,7 @@ export function buildForecastFromLines(
       );
 
       cells.push({
-        month,
-        year: planningYear,
+        year,
         assemblyId: line.assemblyId,
         expected,
         min,
@@ -229,7 +184,7 @@ export function buildForecastFromLines(
   }
 
   cells.sort(
-    (a, b) => a.month - b.month || a.assemblyId.localeCompare(b.assemblyId),
+    (a, b) => a.year - b.year || a.assemblyId.localeCompare(b.assemblyId),
   );
   return cells;
 }
@@ -244,7 +199,7 @@ export function normalizeDistribution(
 }
 
 /**
- * Build min/max sampling band around the day-weighted monthly allocation.
+ * Build min/max sampling band around the equal-weight yearly allocation.
  * Fixed always uses the exact expected count. Uniform/triangular use the
  * uncertainty percentage (falls back to fixed if the band collapses).
  */
@@ -287,12 +242,12 @@ export const DISTRIBUTION_OPTIONS: {
     value: 'fixed',
     label: 'Fixed',
     description:
-      'Use the allocated monthly quantity exactly (no sampling noise).',
+      'Use the allocated yearly quantity exactly (no sampling noise).',
   },
   {
     value: 'uniform',
     label: 'Uniform',
-    description: 'Sample evenly between the uncertainty min and max each month.',
+    description: 'Sample evenly between the uncertainty min and max each year.',
   },
   {
     value: 'triangular',

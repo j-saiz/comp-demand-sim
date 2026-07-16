@@ -22,19 +22,19 @@ export type DistributionType = 'fixed' | 'uniform' | 'triangular';
 
 /**
  * User-defined demand line inside a scenario:
- * an assembly, total quantity, date window, and sampling distribution.
+ * an assembly, total quantity, year window, and sampling distribution.
  */
 export interface ScenarioDemandLine {
   id: string;
   assemblyId: string;
-  /** Total number of assembly units in the date window. */
+  /** Total number of assembly units in the year window. */
   quantity: number;
-  /** Inclusive start date (YYYY-MM-DD). */
-  startDate: string;
-  /** Inclusive end date (YYYY-MM-DD). */
-  endDate: string;
+  /** Inclusive start calendar year. */
+  startYear: number;
+  /** Inclusive end calendar year. */
+  endYear: number;
   /**
-   * How monthly allocated quantities are sampled:
+   * How yearly allocated quantities are sampled:
    * fixed = exact allocation; uniform/triangular = band around allocation.
    */
   distribution: DistributionType;
@@ -48,7 +48,7 @@ export interface UserScenario {
 }
 
 /**
- * Forecast cell: monthly assembly-quantity uncertainty for one assembly.
+ * Forecast cell: yearly assembly-quantity uncertainty for one assembly.
  * Validation rules:
  * - min >= 0, max >= min
  * - fixed: expected used as exact value
@@ -56,7 +56,7 @@ export interface UserScenario {
  * - triangular: min <= mode(expected) <= max
  */
 export interface ForecastCell {
-  month: number; // 1-12 within planning year
+  /** Calendar year within the planning horizon */
   year: number;
   assemblyId: string;
   expected: number;
@@ -70,13 +70,15 @@ export interface SimulationSettings {
   seed: number;
   percentiles: number[];
   /**
-   * Relative uncertainty band around the allocated monthly assembly count
+   * Relative uncertainty band around the allocated yearly assembly count
    * when a line uses uniform or triangular sampling (e.g. 0.15 ≈ ±15%).
    * Ignored for fixed distribution.
    */
-  monthlyUncertaintyPct: number;
-  /** Planning calendar year used to bin demand dates into months. */
-  planningYear: number;
+  yearlyUncertaintyPct: number;
+  /** First calendar year of the planning horizon. */
+  planningStartYear: number;
+  /** Number of years in the planning horizon (default 15). */
+  planningHorizonYears: number;
 }
 
 export interface DistributionSampleInput {
@@ -96,13 +98,13 @@ export interface SimulationRawResult {
   scenarioId: string;
   iterations: number;
   seed: number;
-  months: number[];
+  years: number[];
   componentIds: string[];
   /**
-   * demand[componentId][monthIndex0][iteration] = integer component units
+   * demand[componentId][yearIndex][iteration] = integer component units
    */
   demand: Record<string, number[][]>;
-  /** Annual totals per component per iteration */
+  /** Horizon totals per component per iteration */
   annual: Record<string, number[]>;
 }
 
@@ -115,21 +117,20 @@ export interface StatSummary {
   percentiles: Record<string, number>;
 }
 
-export interface ComponentMonthStats {
+export interface ComponentYearStats {
   componentId: string;
   componentName: string;
-  month: number;
+  year: number;
   stats: StatSummary;
 }
 
-export interface ComponentAnnualStats {
+export interface ComponentHorizonStats {
   componentId: string;
   componentName: string;
   stats: StatSummary;
 }
 
-export interface MonthlyAllocationRow {
-  month: number;
+export interface YearlyAllocationRow {
   year: number;
   assemblyId: string;
   assemblyName: string;
@@ -144,18 +145,20 @@ export interface ScenarioResultView {
   scenarioName: string;
   iterations: number;
   seed: number;
-  months: number[];
-  planningYear: number;
+  years: number[];
+  planningStartYear: number;
+  planningHorizonYears: number;
   lines: ScenarioDemandLine[];
-  monthlyAllocation: MonthlyAllocationRow[];
-  componentAnnual: ComponentAnnualStats[];
-  componentByMonth: ComponentMonthStats[];
-  cvRanking: ComponentAnnualStats[];
-  /** For fan chart: series per component */
-  monthlyBands: Record<
+  yearlyAllocation: YearlyAllocationRow[];
+  /** Totals over the full planning horizon */
+  componentHorizon: ComponentHorizonStats[];
+  componentByYear: ComponentYearStats[];
+  cvRanking: ComponentHorizonStats[];
+  /** For fan chart: series per component by year */
+  yearlyBands: Record<
     string,
     {
-      month: number;
+      year: number;
       mean: number;
       p10: number;
       p25: number;

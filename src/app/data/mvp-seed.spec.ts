@@ -2,7 +2,20 @@ import {
   cloneBom,
   createCatalogId,
   emptyBomRow,
+  planningYears,
 } from './mvp-seed';
+
+describe('planningYears', () => {
+  it('returns a contiguous calendar-year range', () => {
+    expect(planningYears(2026, 15)).toEqual(
+      Array.from({ length: 15 }, (_, i) => 2026 + i),
+    );
+  });
+
+  it('clamps horizon length to at least 1', () => {
+    expect(planningYears(2030, 0)).toEqual([2030]);
+  });
+});
 
 describe('createCatalogId', () => {
   it('slugifies the name', () => {

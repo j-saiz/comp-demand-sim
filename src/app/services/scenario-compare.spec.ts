@@ -1,8 +1,8 @@
 import {
   buildAnnualDeltas,
-  monthlyMeansByScenario,
   rankByDeltaP90,
   summarizeScenarios,
+  yearlyMeansByScenario,
 } from './scenario-compare';
 import type { ScenarioResultView } from '../models/domain';
 
@@ -16,20 +16,21 @@ function mockResult(
     scenarioName: name,
     iterations: 100,
     seed: 1,
-    months: [1, 2],
-    planningYear: 2026,
+    years: [2026, 2027],
+    planningStartYear: 2026,
+    planningHorizonYears: 2,
     lines: [
       {
         id: 'l1',
         assemblyId: 'a',
         quantity: 10,
-        startDate: '2026-01-01',
-        endDate: '2026-12-31',
+        startYear: 2026,
+        endYear: 2027,
         distribution: 'fixed',
       },
     ],
-    monthlyAllocation: [],
-    componentAnnual: components.map((c) => ({
+    yearlyAllocation: [],
+    componentHorizon: components.map((c) => ({
       componentId: c.id,
       componentName: c.name,
       stats: {
@@ -41,11 +42,11 @@ function mockResult(
         percentiles: { p90: c.p90, p50: c.mean },
       },
     })),
-    componentByMonth: components.flatMap((c) =>
-      [1, 2].map((month) => ({
+    componentByYear: components.flatMap((c) =>
+      [2026, 2027].map((year) => ({
         componentId: c.id,
         componentName: c.name,
-        month,
+        year,
         stats: {
           mean: c.mean / 2,
           stdDev: 0,
@@ -57,7 +58,7 @@ function mockResult(
       })),
     ),
     cvRanking: [],
-    monthlyBands: {},
+    yearlyBands: {},
   };
 }
 
@@ -95,9 +96,10 @@ describe('scenario-compare', () => {
     expect(meta[0].lineCount).toBe(1);
   });
 
-  it('monthlyMeansByScenario extracts monthly means per scenario', () => {
-    const series = monthlyMeansByScenario([baseline, high], 'cpu');
+  it('yearlyMeansByScenario extracts yearly means per scenario', () => {
+    const series = yearlyMeansByScenario([baseline, high], 'cpu');
     expect(series).toHaveLength(2);
+    expect(series[0].years).toEqual([2026, 2027]);
     expect(series[0].means).toEqual([50, 50]);
     expect(series[1].scenarioName).toBe('High');
   });

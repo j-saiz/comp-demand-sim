@@ -3,9 +3,9 @@ import { ScenarioResultView } from '../models/domain';
 export interface ComponentDeltaRow {
   componentId: string;
   componentName: string;
-  /** Mean annual demand by scenario id */
+  /** Mean horizon demand by scenario id */
   means: Record<string, number>;
-  /** P90 annual demand by scenario id */
+  /** P90 horizon demand by scenario id */
   p90s: Record<string, number>;
   baselineMean: number;
   baselineP90: number;
@@ -13,10 +13,8 @@ export interface ComponentDeltaRow {
   minMean: number;
   maxP90: number;
   minP90: number;
-  /** maxMean − baselineMean (or vs min if no baseline) */
   deltaMean: number;
   deltaP90: number;
-  /** Relative change vs baseline mean (0 if baseline mean is 0) */
   deltaMeanPct: number;
   deltaP90Pct: number;
 }
@@ -29,7 +27,7 @@ export interface ScenarioCompareMeta {
 }
 
 /**
- * Build annual component comparison rows across scenario results.
+ * Build horizon-total component comparison rows across scenario results.
  * @param baselineId Scenario used as the reference for Δ columns.
  */
 export function buildAnnualDeltas(
@@ -43,7 +41,7 @@ export function buildAnnualDeltas(
 
   const componentIds = new Set<string>();
   for (const r of results) {
-    for (const row of r.componentAnnual) {
+    for (const row of r.componentHorizon) {
       componentIds.add(row.componentId);
     }
   }
@@ -56,7 +54,7 @@ export function buildAnnualDeltas(
     let componentName = componentId;
 
     for (const result of results) {
-      const annual = result.componentAnnual.find(
+      const annual = result.componentHorizon.find(
         (c) => c.componentId === componentId,
       );
       const mean = annual?.stats.mean ?? 0;
@@ -120,30 +118,33 @@ export function summarizeScenarios(
 }
 
 /**
- * Monthly mean series for one component across scenarios (for multi-line chart).
+ * Yearly mean series for one component across scenarios (for multi-line chart).
  */
-export function monthlyMeansByScenario(
+export function yearlyMeansByScenario(
   results: ScenarioResultView[],
   componentId: string,
 ): {
   scenarioId: string;
   scenarioName: string;
-  months: number[];
+  years: number[];
   means: number[];
 }[] {
   return results.map((r) => {
-    const months = r.months;
-    const means = months.map((month) => {
-      const cell = r.componentByMonth.find(
-        (c) => c.componentId === componentId && c.month === month,
+    const years = r.years;
+    const means = years.map((year) => {
+      const cell = r.componentByYear.find(
+        (c) => c.componentId === componentId && c.year === year,
       );
       return cell?.stats.mean ?? 0;
     });
     return {
       scenarioId: r.scenarioId,
       scenarioName: r.scenarioName,
-      months: [...months],
+      years: [...years],
       means,
     };
   });
 }
+
+/** @deprecated Use yearlyMeansByScenario */
+export const monthlyMeansByScenario = yearlyMeansByScenario;

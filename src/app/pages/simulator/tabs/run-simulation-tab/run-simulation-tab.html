@@ -188,7 +188,7 @@
                 Quantity
                 <app-help-tip
                   label="Quantity"
-                  text="Total number of assembly units between the start and end dates."
+                  text="Total number of assembly units between the start and end years (spread evenly across overlapping planning years)."
                 />
               </span>
               <input
@@ -205,7 +205,7 @@
                 Distribution
                 <app-help-tip
                   label="Distribution"
-                  text="Fixed uses the allocated monthly count exactly. Uniform samples evenly between min and max. Triangular peaks at the allocated count within the uncertainty band."
+                  text="Fixed uses the allocated yearly count exactly. Uniform samples evenly between min and max. Triangular peaks at the allocated count within the uncertainty band."
                 />
               </span>
               <select
@@ -219,35 +219,41 @@
             </label>
 
             <label class="field">
-              <span class="field__label">Start date</span>
+              <span class="field__label">Start year</span>
               <input
-                type="date"
-                [ngModel]="line.startDate"
-                (ngModelChange)="onLineStartChange(line.id, $event)"
+                type="number"
+                min="1900"
+                max="2200"
+                step="1"
+                [ngModel]="line.startYear"
+                (ngModelChange)="onLineStartYearChange(line.id, $event)"
               />
             </label>
 
             <label class="field">
-              <span class="field__label">End date</span>
+              <span class="field__label">End year</span>
               <input
-                type="date"
-                [ngModel]="line.endDate"
-                (ngModelChange)="onLineEndChange(line.id, $event)"
+                type="number"
+                min="1900"
+                max="2200"
+                step="1"
+                [ngModel]="line.endYear"
+                (ngModelChange)="onLineEndYearChange(line.id, $event)"
               />
             </label>
           </div>
           <p class="line-card__dist-hint">
             @switch (line.distribution || 'triangular') {
               @case ('fixed') {
-                Fixed: monthly units equal the day-weighted allocation
+                Fixed: yearly units equal the equal-weight allocation
                 (uncertainty % ignored).
               }
               @case ('uniform') {
-                Uniform: each month samples evenly between the uncertainty min
+                Uniform: each year samples evenly between the uncertainty min
                 and max.
               }
               @default {
-                Triangular: each month peaks at the allocation and tapers to the
+                Triangular: each year peaks at the allocation and tapers to the
                 uncertainty min/max.
               }
             }
@@ -264,27 +270,30 @@
 
   <section class="panel" aria-labelledby="preview-heading">
     <h2 id="preview-heading">
-      Monthly allocation preview (active scenario)
+      Yearly allocation preview (active scenario)
       <app-help-tip
         label="Allocation"
-        text="Quantities are day-weighted across months that overlap each line’s date range."
+        text="Quantities are spread evenly across planning-horizon years that overlap each line’s start–end year range."
       />
     </h2>
     <p class="panel__hint">
-      Planning year: <strong>{{ state.settings().planningYear }}</strong>.
+      Planning horizon:
+      <strong>{{ horizonLabel() }}</strong>
+      ({{ state.settings().planningHorizonYears }} years from
+      {{ state.settings().planningStartYear }}).
     </p>
 
     @if (allocationPreview().length === 0) {
-      <p class="panel__hint">No demand falls in the planning year yet.</p>
+      <p class="panel__hint">No demand falls in the planning horizon yet.</p>
     } @else {
       <div class="table-wrap table-wrap--scroll">
         <table class="data-table data-table--compact">
           <caption class="sr-only">
-            Expected monthly assembly units from active scenario
+            Expected yearly assembly units from active scenario
           </caption>
           <thead>
             <tr>
-              <th scope="col">Month</th>
+              <th scope="col">Year</th>
               <th scope="col">Assembly</th>
               <th scope="col">Expected units</th>
             </tr>
@@ -292,10 +301,10 @@
           <tbody>
             @for (
               row of allocationPreview();
-              track row.lineId + '-' + row.month + '-' + row.assemblyName
+              track row.lineId + '-' + row.year + '-' + row.assemblyName
             ) {
               <tr>
-                <td>{{ row.monthLabel }}</td>
+                <td>{{ row.year }}</td>
                 <td>{{ row.assemblyName }}</td>
                 <td>{{ row.units }}</td>
               </tr>
@@ -309,27 +318,50 @@
   <section class="panel" aria-labelledby="settings-heading">
     <h2 id="settings-heading">Simulation settings (shared)</h2>
     <p class="panel__hint">
-      Same seed, iterations, year, and uncertainty apply to every compared
+      Same seed, iterations, horizon, and uncertainty apply to every compared
       scenario so differences reflect demand plans, not random noise.
     </p>
     <div class="field-grid field-grid--2">
       <label class="field">
-        <span class="field__label">Planning year</span>
+        <span class="field__label">
+          Planning start year
+          <app-help-tip
+            label="Start year"
+            text="First calendar year of the planning horizon."
+          />
+        </span>
         <input
           type="number"
-          min="2000"
-          max="2100"
+          min="1900"
+          max="2200"
           step="1"
-          [ngModel]="state.settings().planningYear"
-          (ngModelChange)="onPlanningYearChange($event)"
+          [ngModel]="state.settings().planningStartYear"
+          (ngModelChange)="onPlanningStartYearChange($event)"
         />
       </label>
       <label class="field">
         <span class="field__label">
-          Monthly uncertainty (%)
+          Planning year length
+          <app-help-tip
+            label="Horizon length"
+            text="Number of years in the planning horizon (default 15). Results and charts break demand down by each year in this range."
+          />
+        </span>
+        <input
+          type="number"
+          min="1"
+          max="100"
+          step="1"
+          [ngModel]="state.settings().planningHorizonYears"
+          (ngModelChange)="onPlanningHorizonYearsChange($event)"
+        />
+      </label>
+      <label class="field">
+        <span class="field__label">
+          Yearly uncertainty (%)
           <app-help-tip
             label="Uncertainty"
-            text="Width of the sampling band for Uniform and Triangular lines."
+            text="Width of the sampling band for Uniform and Triangular lines around each year’s allocated quantity."
           />
         </span>
         <input

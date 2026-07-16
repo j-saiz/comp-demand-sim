@@ -1,6 +1,5 @@
 import { Injectable } from '@angular/core';
 import { ScenarioResultView } from '../models/domain';
-import { MONTH_LABELS } from '../data/mvp-seed';
 
 @Injectable({ providedIn: 'root' })
 export class ExportCsvService {
@@ -10,31 +9,30 @@ export class ExportCsvService {
     for (const result of results) {
       sections.push(`# Scenario: ${result.scenarioName}`);
       sections.push(
-        `# Iterations: ${result.iterations}; Seed: ${result.seed}; Planning year: ${result.planningYear}`,
+        `# Iterations: ${result.iterations}; Seed: ${result.seed}; Planning start: ${result.planningStartYear}; Horizon years: ${result.planningHorizonYears}`,
       );
       sections.push('');
       sections.push('## Demand lines');
-      sections.push('Assembly,Quantity,Start Date,End Date,Distribution');
+      sections.push('Assembly,Quantity,Start Year,End Year,Distribution');
       for (const line of result.lines) {
         sections.push(
           [
             csvEscape(line.assemblyId),
             String(line.quantity),
-            line.startDate,
-            line.endDate,
+            String(line.startYear),
+            String(line.endYear),
             line.distribution ?? 'triangular',
           ].join(','),
         );
       }
 
       sections.push('');
-      sections.push('## Monthly allocation (expected assembly units)');
-      sections.push('Month,Assembly,Expected,Min,Max,Distribution');
-      for (const row of result.monthlyAllocation) {
-        const monthLabel = MONTH_LABELS[row.month - 1] ?? String(row.month);
+      sections.push('## Yearly allocation (expected assembly units)');
+      sections.push('Year,Assembly,Expected,Min,Max,Distribution');
+      for (const row of result.yearlyAllocation) {
         sections.push(
           [
-            monthLabel,
+            String(row.year),
             csvEscape(row.assemblyName),
             fmt(row.expectedUnits, 0),
             fmt(row.minUnits, 0),
@@ -45,7 +43,7 @@ export class ExportCsvService {
       }
 
       sections.push('');
-      sections.push('## Component Annual Summary');
+      sections.push('## Component Horizon Summary');
       sections.push(
         [
           'Component',
@@ -61,7 +59,7 @@ export class ExportCsvService {
         ].join(','),
       );
 
-      for (const row of result.componentAnnual) {
+      for (const row of result.componentHorizon) {
         const p = row.stats.percentiles;
         sections.push(
           [
@@ -80,11 +78,11 @@ export class ExportCsvService {
       }
 
       sections.push('');
-      sections.push('## Component by Month');
+      sections.push('## Component by Year');
       sections.push(
         [
           'Component',
-          'Month',
+          'Year',
           'Mean',
           'StdDev',
           'CV',
@@ -95,13 +93,12 @@ export class ExportCsvService {
         ].join(','),
       );
 
-      for (const row of result.componentByMonth) {
+      for (const row of result.componentByYear) {
         const p = row.stats.percentiles;
-        const monthLabel = MONTH_LABELS[row.month - 1] ?? String(row.month);
         sections.push(
           [
             csvEscape(row.componentName),
-            monthLabel,
+            String(row.year),
             fmt(row.stats.mean),
             fmt(row.stats.stdDev),
             fmt(row.stats.cv, 4),

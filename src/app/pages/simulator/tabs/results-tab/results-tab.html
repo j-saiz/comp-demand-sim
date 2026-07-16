@@ -15,7 +15,10 @@
               }
             </select>
           </label>
-          · planning year {{ result.planningYear }} ·
+          · horizon {{ result.planningStartYear }}–{{
+            result.planningStartYear + result.planningHorizonYears - 1
+          }}
+          ({{ result.planningHorizonYears }} yr) ·
           {{ result.iterations | number }} iterations · seed {{ result.seed }}
         </p>
       </div>
@@ -34,8 +37,9 @@
         <h2 id="compare-summary-heading">Scenario comparison</h2>
         <p class="panel__hint">
           Shared catalog/BOM and settings. Deltas vs
-          <strong>{{ baselineName() }}</strong>. Scenarios are alternate demand
-          plans, not simultaneous correlated worlds.
+          <strong>{{ baselineName() }}</strong> for component demand over the
+          full planning horizon. Scenarios are alternate demand plans, not
+          simultaneous correlated worlds.
         </p>
         <div class="summary-cards">
           @for (m of state.scenarioSummaries(); track m.scenarioId) {
@@ -52,16 +56,16 @@
 
       <section class="panel" aria-labelledby="delta-heading">
         <h2 id="delta-heading">
-          Annual deltas vs {{ baselineName() }}
+          Horizon totals vs {{ baselineName() }}
           <app-help-tip
             label="Deltas"
-            text="Δ Mean and Δ P90 are (highest among compared scenarios) − baseline for that component. Sort focus: P90 moves for planning buffers."
+            text="Δ Mean and Δ P90 are (highest among compared scenarios) − baseline for that component over the full planning horizon."
           />
         </h2>
         <div class="table-wrap table-wrap--scroll">
           <table class="data-table data-table--compact">
             <caption class="sr-only">
-              Component demand means and P90 by scenario
+              Component horizon demand means and P90 by scenario
             </caption>
             <thead>
               <tr>
@@ -126,10 +130,10 @@
       <section class="panel" aria-labelledby="scenario-chart-heading">
         <div class="panel__title-row">
           <h2 id="scenario-chart-heading">
-            Monthly means by scenario
+            Yearly means by scenario
             <app-help-tip
               label="Scenario chart"
-              text="One component’s mean monthly demand, one line per scenario. Choose a single component for detail fan charts below."
+              text="One component’s mean yearly demand, one line per scenario."
             />
           </h2>
           <label class="field field--inline">
@@ -146,19 +150,18 @@
         </div>
         <app-fan-chart
           [title]="
-            'Monthly ' + compareChartComponentName() + ' demand by scenario'
+            'Yearly ' + compareChartComponentName() + ' demand by scenario'
           "
           [componentName]="compareChartComponentName()"
           [series]="scenarioCompareSeries()"
           [height]="420"
+          xAxisTitle="Year"
         />
       </section>
     }
 
     <section class="panel" aria-labelledby="lines-heading">
-      <h2 id="lines-heading">
-        Demand lines — {{ result.scenarioName }}
-      </h2>
+      <h2 id="lines-heading">Demand lines — {{ result.scenarioName }}</h2>
       <div class="table-wrap">
         <table class="data-table">
           <caption class="sr-only">
@@ -169,8 +172,8 @@
               <th scope="col">Assembly</th>
               <th scope="col">Quantity</th>
               <th scope="col">Distribution</th>
-              <th scope="col">Start date</th>
-              <th scope="col">End date</th>
+              <th scope="col">Start year</th>
+              <th scope="col">End year</th>
             </tr>
           </thead>
           <tbody>
@@ -179,8 +182,8 @@
                 <th scope="row">{{ assemblyLabel(line.assemblyId) }}</th>
                 <td>{{ formatInteger(line.quantity) }}</td>
                 <td class="capitalize">{{ line.distribution || 'triangular' }}</td>
-                <td>{{ line.startDate }}</td>
-                <td>{{ line.endDate }}</td>
+                <td>{{ line.startYear }}</td>
+                <td>{{ line.endYear }}</td>
               </tr>
             }
           </tbody>
@@ -192,7 +195,8 @@
       <h2 id="howto-heading">How to read results</h2>
       <ul class="howto-list">
         <li>
-          <strong>Mean</strong> — average simulated demand across iterations.
+          <strong>Mean</strong> — average simulated demand across iterations
+          (horizon totals or per year, depending on the table).
         </li>
         <li>
           <strong>CV (coefficient of variation)</strong>
@@ -200,14 +204,14 @@
             label="CV"
             text="Std. deviation ÷ mean. Higher CV means more relative uncertainty in demand."
           />
-          — higher values signal more uncertainty (driven by monthly uncertainty
+          — higher values signal more uncertainty (driven by yearly uncertainty
           % when set above 0).
         </li>
         <li>
           <strong>P90</strong>
           <app-help-tip
             label="P90"
-            text="P90 = 90% of simulated outcomes are at or below this demand level. Useful as a conservative planning reference, not a buy recommendation."
+            text="P90 = 90% of simulated outcomes are at or below this demand level."
           />
           — 90% chance demand is at or below this level in the simulated
           distribution.
@@ -216,9 +220,9 @@
           <strong>Fan chart bands</strong>
           <app-help-tip
             label="Fan chart"
-            text="For a single component: outer band is P10–P90, inner is P25–P75, line is mean. For all components: mean lines only for readability."
+            text="For a single component: outer band is P10–P90, inner is P25–P75, line is mean. For all components: mean lines only."
           />
-          — single component shows fan bands; all components shows mean lines.
+          — yearly x-axis; single component shows fan bands.
         </li>
       </ul>
     </section>
@@ -226,16 +230,22 @@
     <section class="panel" aria-labelledby="summary-heading">
       <div class="panel__title-row">
         <h2 id="summary-heading">
-          Component summary — {{ result.scenarioName }}
+          Component horizon summary — {{ result.scenarioName }}
         </h2>
         <span class="badge"
           >{{ result.iterations | number }} iters · seed {{ result.seed }}</span
         >
       </div>
+      <p class="panel__hint">
+        Totals over the full planning horizon
+        ({{ result.planningStartYear }}–{{
+          result.planningStartYear + result.planningHorizonYears - 1
+        }}).
+      </p>
       <div class="table-wrap">
         <table class="data-table">
           <caption class="sr-only">
-            Annual component demand statistics
+            Horizon component demand statistics
           </caption>
           <thead>
             <tr>
@@ -246,7 +256,7 @@
                 CV
                 <app-help-tip
                   label="CV column"
-                  text="Higher CV = more uncertain annual demand."
+                  text="Higher CV = more uncertain horizon demand."
                 />
               </th>
               <th scope="col">Min</th>
@@ -258,7 +268,7 @@
             </tr>
           </thead>
           <tbody>
-            @for (row of result.componentAnnual; track row.componentId) {
+            @for (row of result.componentHorizon; track row.componentId) {
               <tr>
                 <th scope="row">{{ row.componentName }}</th>
                 <td>{{ formatInteger(row.stats.mean) }}</td>
@@ -279,20 +289,16 @@
 
     <section class="panel" aria-labelledby="percentile-heading">
       <h2 id="percentile-heading">
-        Percentile planning table
+        Percentile planning table (horizon)
         <app-help-tip
           label="Planning table"
-          text="Use percentiles as conversation anchors for buffer discussions. This table does not recommend order quantities or timing."
+          text="Use percentiles as conversation anchors for buffer discussions over the full planning horizon."
         />
       </h2>
-      <p class="panel__hint">
-        Annual component demand levels by percentile. Supports early procurement
-        conversations only — not buy/when recommendations.
-      </p>
       <div class="table-wrap">
         <table class="data-table">
           <caption class="sr-only">
-            Annual percentile planning levels by component
+            Horizon percentile planning levels by component
           </caption>
           <thead>
             <tr>
@@ -304,7 +310,7 @@
             </tr>
           </thead>
           <tbody>
-            @for (row of result.componentAnnual; track row.componentId) {
+            @for (row of result.componentHorizon; track row.componentId) {
               <tr>
                 <th scope="row">{{ row.componentName }}</th>
                 <td>{{ formatInteger(row.stats.percentiles['p50']) }}</td>
@@ -323,7 +329,7 @@
         Components ranked by CV
         <app-help-tip
           label="CV ranking"
-          text="Components with higher annual CV have more relative demand uncertainty under the current forecast assumptions."
+          text="Components with higher horizon CV have more relative demand uncertainty."
         />
       </h2>
       <ol class="rank-list">
@@ -343,19 +349,19 @@
     </section>
 
     <section class="panel" aria-labelledby="alloc-heading">
-      <h2 id="alloc-heading">Monthly assembly allocation used</h2>
+      <h2 id="alloc-heading">Yearly assembly allocation used</h2>
       <p class="panel__hint">
-        Expected assembly units by month after day-weighted allocation (before
+        Expected assembly units by year after equal-weight allocation (before
         Monte Carlo uncertainty).
       </p>
       <div class="table-wrap table-wrap--scroll">
         <table class="data-table data-table--compact">
           <caption class="sr-only">
-            Monthly expected assembly allocation
+            Yearly expected assembly allocation
           </caption>
           <thead>
             <tr>
-              <th scope="col">Month</th>
+              <th scope="col">Year</th>
               <th scope="col">Assembly</th>
               <th scope="col">Expected</th>
               <th scope="col">Min</th>
@@ -364,9 +370,9 @@
             </tr>
           </thead>
           <tbody>
-            @for (row of result.monthlyAllocation; track $index) {
+            @for (row of result.yearlyAllocation; track $index) {
               <tr>
-                <td>{{ monthLabel(row.month) }}</td>
+                <td>{{ row.year }}</td>
                 <td>{{ row.assemblyName }}</td>
                 <td>{{ formatInteger(row.expectedUnits) }}</td>
                 <td>{{ formatInteger(row.minUnits) }}</td>
@@ -379,33 +385,32 @@
       </div>
     </section>
 
-    <section class="panel" aria-labelledby="month-heading">
-      <h2 id="month-heading">Component-by-month table</h2>
+    <section class="panel" aria-labelledby="year-heading">
+      <h2 id="year-heading">Component-by-year table</h2>
       <p class="panel__hint">
-        Mean monthly demand for this scenario. Scroll horizontally for all
-        months.
+        Mean yearly demand for this scenario. Scroll horizontally for all years.
       </p>
       <div class="table-wrap table-wrap--scroll">
         <table class="data-table data-table--compact">
           <caption class="sr-only">
-            Mean component demand by month
+            Mean component demand by year
           </caption>
           <thead>
             <tr>
               <th scope="col">Component</th>
-              @for (label of monthLabels; track label) {
-                <th scope="col">{{ label }}</th>
+              @for (y of result.years; track y) {
+                <th scope="col">{{ y }}</th>
               }
-              <th scope="col">Annual mean</th>
+              <th scope="col">Horizon mean</th>
             </tr>
           </thead>
           <tbody>
-            @for (c of result.componentAnnual; track c.componentId) {
+            @for (c of result.componentHorizon; track c.componentId) {
               <tr>
                 <th scope="row">{{ c.componentName }}</th>
-                @for (m of result.months; track m) {
-                  @let cell = result.componentByMonth.find(
-                    (r) => r.componentId === c.componentId && r.month === m
+                @for (y of result.years; track y) {
+                  @let cell = result.componentByYear.find(
+                    (r) => r.componentId === c.componentId && r.year === y
                   );
                   <td>{{ cell ? formatInteger(cell.stats.mean) : '—' }}</td>
                 }
@@ -437,10 +442,11 @@
       </div>
       <p class="panel__hint">
         @if (isAllComponentsChart()) {
-          Mean monthly demand for every component on one chart. Choose a single
+          Mean yearly demand for every component on one chart. Choose a single
           component to see P10–P90 / P25–P75 fan bands.
         } @else {
-          Fan chart for one component: mean line with P10–P90 and P25–P75 bands.
+          Fan chart for one component: mean line with P10–P90 and P25–P75 bands
+          by year.
         }
       </p>
       <app-fan-chart
@@ -448,6 +454,7 @@
         [componentName]="chartComponentName()"
         [series]="chartSeries()"
         [height]="520"
+        xAxisTitle="Year"
       />
     </section>
   </div>
@@ -455,7 +462,7 @@
   <section class="panel panel--empty" aria-labelledby="empty-heading">
     <h2 id="empty-heading">No results yet</h2>
     <p>
-      Define assemblies, quantities, and date ranges, then run the simulation to
+      Define assemblies, quantities, and year ranges, then run the simulation to
       generate component demand statistics.
     </p>
     <div class="actions">

@@ -92,12 +92,23 @@ describe('SimStateService', () => {
     expect(service.compareScenarioIds()).toContain(service.activeScenarioId());
   });
 
-  it('adds demand lines using the default assembly', () => {
+  it('adds demand lines using the default assembly and year range', () => {
     const before = service.lineCount();
     service.addDemandLine();
     expect(service.lineCount()).toBe(before + 1);
     const last = service.activeScenario()!.lines.at(-1)!;
     expect(last.assemblyId).toBe(service.defaultAssemblyId());
+    expect(last.startYear).toBe(service.settings().planningStartYear);
+    expect(last.endYear).toBe(
+      service.settings().planningStartYear +
+        service.settings().planningHorizonYears -
+        1,
+    );
+  });
+
+  it('defaults to a 15-year planning horizon', () => {
+    expect(service.settings().planningHorizonYears).toBe(15);
+    expect(service.settings().planningStartYear).toBeGreaterThanOrEqual(2000);
   });
 
   it('keeps at least one scenario when removing', () => {

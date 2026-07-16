@@ -25,9 +25,9 @@ import { MonteCarloService } from './monte-carlo.service';
 import { ExportCsvService } from './export-csv.service';
 import {
   buildAnnualDeltas,
-  monthlyMeansByScenario,
   rankByDeltaP90,
   summarizeScenarios,
+  yearlyMeansByScenario,
 } from './scenario-compare';
 
 export type SimulatorTabId = 'assumptions' | 'run' | 'results';
@@ -66,7 +66,7 @@ export class SimStateService {
   readonly detailScenarioId = signal<string | null>(null);
 
   readonly selectedChartComponentId = signal<string>('__all__');
-  /** Component id for cross-scenario monthly mean chart */
+  /** Component id for cross-scenario yearly mean chart */
   readonly compareChartComponentId = signal<string>('cpu');
   readonly lastRunAt = signal<string | null>(null);
 
@@ -189,14 +189,22 @@ export class SimStateService {
   }
 
   addScenario(): void {
-    const year = this.settings().planningYear;
+    const { planningStartYear, planningHorizonYears } = this.settings();
     const assemblyId = this.defaultAssemblyId();
     const existing = this.scenarios().map((s) => s.id);
     const id = createScenarioId(existing);
     const sc: UserScenario = {
       id,
       name: `Scenario ${this.scenarios().length + 1}`,
-      lines: assemblyId ? [createEmptyDemandLine(year, assemblyId)] : [],
+      lines: assemblyId
+        ? [
+            createEmptyDemandLine(
+              planningStartYear,
+              planningHorizonYears,
+              assemblyId,
+            ),
+          ]
+        : [],
     };
     this.scenarios.update((list) => [...list, sc]);
     this.activeScenarioId.set(id);
@@ -249,7 +257,7 @@ export class SimStateService {
   // ── Demand lines (active scenario) ───────────────────────────────
 
   addDemandLine(): void {
-    const year = this.settings().planningYear;
+    const { planningStartYear, planningHorizonYears } = this.settings();
     const assemblyId = this.defaultAssemblyId();
     if (!assemblyId) {
       this.error.set(
@@ -259,7 +267,14 @@ export class SimStateService {
     }
     this.updateActiveScenario((sc) => ({
       ...sc,
-      lines: [...sc.lines, createEmptyDemandLine(year, assemblyId)],
+      lines: [
+        ...sc.lines,
+        createEmptyDemandLine(
+          planningStartYear,
+          planningHorizonYears,
+          assemblyId,
+        ),
+      ],
     }));
   }
 
@@ -495,7 +510,7 @@ export class SimStateService {
 
         this.selectedChartComponentId.set('__all__');
         const firstComponent =
-          results[detail]?.componentAnnual[0]?.componentId ?? 'cpu';
+          results[detail]?.componentHorizon[0]?.componentId ?? 'cpu';
         this.compareChartComponentId.set(firstComponent);
 
         this.selectTab('results');
@@ -515,8 +530,13 @@ export class SimStateService {
     this.exportCsv.exportResults(results);
   }
 
+  compareYearlySeries(componentId: string) {
+    return yearlyMeansByScenario(this.comparedResults(), componentId);
+  }
+
+  /** @deprecated Use compareYearlySeries */
   compareMonthlySeries(componentId: string) {
-    return monthlyMeansByScenario(this.comparedResults(), componentId);
+    return this.compareYearlySeries(componentId);
   }
 
   private cloneBomMatrix(matrix: BomMatrix): BomMatrix {
@@ -534,17 +554,22 @@ export class SimStateService {
     );
     const seed = Math.max(0, Math.floor(settings.seed));
     const percentiles = [10, 25, 50, 75, 80, 90, 95];
-    const monthlyUncertaintyPct = Math.min(
+    const yearlyUncertaintyPct = Math.min(
       1,
-      Math.max(0, settings.monthlyUncertaintyPct),
+      Math.max(0, settings.yearlyUncertaintyPct),
     );
-    const planningYear = Math.round(settings.planningYear);
+    const planningStartYear = Math.round(settings.planningStartYear);
+    const planningHorizonYears = Math.min(
+      100,
+      Math.max(1, Math.round(settings.planningHorizonYears)),
+    );
     return {
       iterations,
       seed,
       percentiles,
-      monthlyUncertaintyPct,
-      planningYear,
+      yearlyUncertaintyPct,
+      planningStartYear,
+      planningHorizonYears,
     };
   }
 
@@ -555,14 +580,36 @@ export class SimStateService {
     return {
       ...scenario,
       name: scenario.name.trim() || 'Custom scenario',
-      lines: scenario.lines.map((line) => ({
-        ...line,
-        quantity: Math.max(0, Math.round(Number(line.quantity) || 0)),
-        assemblyId: validIds.has(line.assemblyId) ? line.assemblyId : fallback,
-        startDate: line.startDate,
-        endDate: line.endDate,
-        distribution: normalizeDistribution(line.distribution),
-      })),
+      lines: scenario.lines.map((line) => {
+        const startYear = Math.round(Number(line.startYear));
+        let endYear = Math.round(Number(line.endYear));
+        if (!Number.isFinite(startYear)) {
+          return {
+            ...line,
+            quantity: Math.max(0, Math.round(Number(line.quantity) || 0)),
+            assemblyId: validIds.has(line.assemblyId)
+              ? line.assemblyId
+              : fallback,
+            startYear: this.settings().planningStartYear,
+            endYear:
+              this.settings().planningStartYear +
+              this.settings().planningHorizonYears -
+              1,
+            distribution: normalizeDistribution(line.distribution),
+          };
+        }
+        if (!Number.isFinite(endYear) || endYear < startYear) {
+          endYear = startYear;
+        }
+        return {
+          ...line,
+          quantity: Math.max(0, Math.round(Number(line.quantity) || 0)),
+          assemblyId: validIds.has(line.assemblyId) ? line.assemblyId : fallback,
+          startYear,
+          endYear,
+          distribution: normalizeDistribution(line.distribution),
+        };
+      }),
     };
   }
 }

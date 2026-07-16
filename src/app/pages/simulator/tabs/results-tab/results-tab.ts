@@ -7,7 +7,6 @@ import {
   FanChartSeries,
 } from '../../../../components/fan-chart/fan-chart';
 import { HelpTip } from '../../../../components/help-tip/help-tip';
-import { MONTH_LABELS } from '../../../../data/mvp-seed';
 import { assemblyName } from '../../../../services/scenario-forecast';
 import {
   formatInteger,
@@ -28,7 +27,6 @@ export const CHART_ALL_COMPONENTS = '__all__';
 export class ResultsTab {
   readonly state = inject(SimStateService);
 
-  readonly monthLabels = MONTH_LABELS;
   readonly chartAllId = CHART_ALL_COMPONENTS;
 
   readonly formatNumber = formatNumber;
@@ -38,7 +36,7 @@ export class ResultsTab {
   readonly resultComponents = computed(() => {
     const result = this.state.primaryResult();
     if (!result) return [];
-    return result.componentAnnual.map((c) => ({
+    return result.componentHorizon.map((c) => ({
       id: c.componentId,
       name: c.componentName,
     }));
@@ -76,7 +74,14 @@ export class ResultsTab {
       return components.map((c, i) => ({
         id: c.id,
         name: c.name,
-        bands: result.monthlyBands[c.id] ?? [],
+        bands: (result.yearlyBands[c.id] ?? []).map((b) => ({
+          year: b.year,
+          mean: b.mean,
+          p10: b.p10,
+          p25: b.p25,
+          p75: b.p75,
+          p90: b.p90,
+        })),
         color: chartColorForIndex(i),
       }));
     }
@@ -92,7 +97,14 @@ export class ResultsTab {
       {
         id: selected,
         name,
-        bands: result.monthlyBands[selected] ?? [],
+        bands: (result.yearlyBands[selected] ?? []).map((b) => ({
+          year: b.year,
+          mean: b.mean,
+          p10: b.p10,
+          p25: b.p25,
+          p75: b.p75,
+          p90: b.p90,
+        })),
         color,
       },
     ];
@@ -101,17 +113,17 @@ export class ResultsTab {
   /** Cross-scenario mean lines for one component */
   readonly scenarioCompareSeries = computed((): FanChartSeries[] => {
     const componentId = this.state.compareChartComponentId();
-    const series = this.state.compareMonthlySeries(componentId);
+    const series = this.state.compareYearlySeries(componentId);
     return series.map((s, i) => ({
       id: s.scenarioId,
       name: s.scenarioName,
-      bands: s.months.map((month, mi) => ({
-        month,
-        mean: s.means[mi] ?? 0,
-        p10: s.means[mi] ?? 0,
-        p25: s.means[mi] ?? 0,
-        p75: s.means[mi] ?? 0,
-        p90: s.means[mi] ?? 0,
+      bands: s.years.map((year, yi) => ({
+        year,
+        mean: s.means[yi] ?? 0,
+        p10: s.means[yi] ?? 0,
+        p25: s.means[yi] ?? 0,
+        p75: s.means[yi] ?? 0,
+        p90: s.means[yi] ?? 0,
       })),
       color: chartColorForIndex(i),
     }));
@@ -128,10 +140,10 @@ export class ResultsTab {
 
   readonly chartTitle = computed(() => {
     if (this.isAllComponentsChart()) {
-      return 'Monthly component demand (all components)';
+      return 'Yearly component demand (all components)';
     }
     const name = this.chartSeries()[0]?.name ?? 'Component';
-    return `Monthly ${name} demand`;
+    return `Yearly ${name} demand`;
   });
 
   readonly chartComponentName = computed(() => {
@@ -163,10 +175,6 @@ export class ResultsTab {
 
   goToRun(): void {
     this.state.selectTab('run');
-  }
-
-  monthLabel(month: number): string {
-    return this.monthLabels[month - 1] ?? String(month);
   }
 
   meanFor(row: { means: Record<string, number> }, scenarioId: string): number {
