@@ -123,6 +123,25 @@ export class SimStateService {
 
   selectTab(tab: SimulatorTabId): void {
     this.activeTab.set(tab);
+    this.scrollWorkspaceToTop();
+  }
+
+  /** Keep the viewport at the top when switching workflow steps. */
+  private scrollWorkspaceToTop(): void {
+    // Defer past the click/focus cycle and tab re-render so the browser does not
+    // re-scroll to the (now gone) button mid-page.
+    setTimeout(() => {
+      const main = document.getElementById('main-content');
+      if (main) {
+        main.scrollTop = 0;
+        main.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      }
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      // Move focus to main without scrolling to a mid-page control.
+      main?.focus({ preventScroll: true });
+    }, 0);
   }
 
   // ── Settings ─────────────────────────────────────────────────────
@@ -479,7 +498,7 @@ export class SimStateService {
           results[detail]?.componentAnnual[0]?.componentId ?? 'cpu';
         this.compareChartComponentId.set(firstComponent);
 
-        this.activeTab.set('results');
+        this.selectTab('results');
       } catch (e) {
         const message = e instanceof Error ? e.message : 'Simulation failed.';
         this.error.set(message);

@@ -1,13 +1,37 @@
 .sim {
   max-width: 72rem;
   margin: 0 auto;
-  padding: 1.75rem 1.25rem 3rem;
+  padding: 0 1.25rem 3rem;
+}
+
+/* Masthead: title + workflow tabs — visually distinct from workspace */
+.sim__chrome {
+  margin: 0 -1.25rem 0;
+  padding: 1.5rem 1.25rem 1.25rem;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 7%, var(--surface)) 0%,
+    var(--surface) 100%
+  );
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 4%);
+}
+
+@media (prefers-color-scheme: dark) {
+  .sim__chrome {
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--accent) 12%, var(--surface)) 0%,
+      var(--surface) 100%
+    );
+    box-shadow: 0 8px 24px rgb(0 0 0 / 25%);
+  }
 }
 
 .sim__hero {
   display: grid;
   gap: 1rem;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.35rem;
 }
 
 @media (min-width: 800px) {
@@ -50,28 +74,50 @@ h1 {
   line-height: 1.45;
 }
 
+/* Workflow step strip */
+.sim-workflow {
+  padding-top: 0.25rem;
+}
+
+.sim-workflow__caption {
+  margin: 0 0 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
 .sim-tabs__list {
-  display: grid;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.45rem;
 }
 
 @media (min-width: 720px) {
   .sim-tabs__list {
-    grid-template-columns: repeat(3, 1fr);
+    flex-direction: row;
+    align-items: center;
+    gap: 0;
   }
+}
+
+.sim-tabs__step {
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 .sim-tabs__tab {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: flex-start;
-  gap: 0.2rem;
+  gap: 0.7rem;
   width: 100%;
   padding: 0.85rem 1rem;
   border: 1px solid var(--border);
   border-radius: 0.85rem;
-  background: var(--surface);
+  background: var(--bg);
   color: var(--text);
   text-align: left;
   cursor: pointer;
@@ -84,6 +130,7 @@ h1 {
 
 .sim-tabs__tab:hover {
   border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: var(--surface);
 }
 
 .sim-tabs__tab:focus-visible {
@@ -94,11 +141,42 @@ h1 {
 .sim-tabs__tab--active {
   border-color: var(--accent);
   background: var(--accent-soft);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent),
+    0 2px 8px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 .sim-tabs__tab--ready:not(.sim-tabs__tab--active) {
   border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+}
+
+.sim-tabs__step-num {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  margin-top: 0.05rem;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 750;
+  line-height: 1;
+}
+
+.sim-tabs__tab--active .sim-tabs__step-num {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.sim-tabs__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
 }
 
 .sim-tabs__label {
@@ -112,6 +190,64 @@ h1 {
   line-height: 1.35;
 }
 
+/* Sequential chevrons between steps */
+.sim-tabs__chevron {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  color: var(--border-strong);
+  padding: 0.15rem 0;
+}
+
+@media (min-width: 720px) {
+  .sim-tabs__chevron {
+    width: 2rem;
+    padding: 0 0.15rem;
+  }
+}
+
+@media (max-width: 719px) {
+  .sim-tabs__chevron {
+    height: 1.25rem;
+    transform: rotate(90deg);
+  }
+}
+
+.sim-tabs__chevron-icon {
+  display: block;
+  opacity: 0.85;
+}
+
+.sim-tabs__step:has(.sim-tabs__tab--active)
+  + .sim-tabs__chevron {
+  color: var(--accent);
+  opacity: 1;
+}
+
+/* Content region under the chrome — no second outer frame */
+.sim__workspace {
+  padding: 1.15rem 0 0;
+}
+
+.sim-tabs__panels {
+  /* Panels own their cards; avoid a boxed wrapper around all content */
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
 .sim-tabs__panel {
   min-height: 12rem;
+}
+
+/* Pull chrome flush with page edges while keeping content max-width */
+@media (min-width: 74.5rem) {
+  .sim__chrome {
+    margin-left: calc(50% - 50vw);
+    margin-right: calc(50% - 50vw);
+    padding-left: calc(50vw - 36rem);
+    padding-right: calc(50vw - 36rem);
+  }
 }

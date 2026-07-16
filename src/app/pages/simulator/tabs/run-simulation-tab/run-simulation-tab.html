@@ -373,16 +373,8 @@
         @if (state.isRunning()) {
           Running scenarios…
         } @else {
-          Run compared scenarios
+          Run and view results
         }
-      </button>
-      <button
-        type="button"
-        class="btn btn--ghost"
-        [disabled]="!state.hasResults()"
-        (click)="viewResults()"
-      >
-        View results
       </button>
     </div>
     @if (state.error(); as err) {

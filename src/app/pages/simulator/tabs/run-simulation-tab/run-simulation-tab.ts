@@ -159,10 +159,6 @@ export class RunSimulationTab {
     this.state.run();
   }
 
-  viewResults(): void {
-    this.state.selectTab('results');
-  }
-
   goToAssumptions(): void {
     this.state.selectTab('assumptions');
   }

@@ -25,17 +25,17 @@ export class Simulator {
   readonly tabs: readonly SimulatorTab[] = [
     {
       id: 'assumptions',
-      label: '1. Assumptions',
+      label: 'Assumptions',
       description: 'Components, assemblies, and BOM',
     },
     {
       id: 'run',
-      label: '2. Run simulation',
+      label: 'Run simulation',
       description: 'Demand lines, settings, and execute',
     },
     {
       id: 'results',
-      label: '3. Results',
+      label: 'Results',
       description: 'Stats, charts, and export',
     },
   ] as const;
